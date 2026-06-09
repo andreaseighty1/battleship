@@ -14,6 +14,7 @@ create table if not exists public.battleship_game_ticks (
 create table if not exists public.battleship_scores (
   id bigserial primary key,
   code text not null,
+  mode text not null default 'arcade',
   winner_name text not null,
   opponent_name text,
   duration_ms integer not null,
@@ -29,8 +30,14 @@ add column if not exists hits integer not null default 0;
 alter table public.battleship_scores
 add column if not exists misses integer not null default 0;
 
+alter table public.battleship_scores
+add column if not exists mode text not null default 'arcade';
+
 create index if not exists battleship_scores_fastest_idx
 on public.battleship_scores (duration_ms asc, shots asc, finished_at asc);
+
+create index if not exists battleship_scores_mode_fastest_idx
+on public.battleship_scores (mode asc, duration_ms asc, shots asc, finished_at asc);
 
 alter table public.battleship_games enable row level security;
 alter table public.battleship_game_ticks enable row level security;

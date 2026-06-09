@@ -48,6 +48,7 @@ test('starts when both players have placed their fleets', () => {
 
   const hostState = serializeGame(host.game, host.playerId);
   assert.equal(hostState.status, 'playing');
+  assert.equal(hostState.mode.id, 'arcade');
   assert.equal(hostState.turn.isYou, true);
 });
 
@@ -63,6 +64,25 @@ test('hit keeps turn and miss passes it', () => {
 
   performAction(host.code, host.playerId, { ability: 'shot', x: 9, y: 9 }, store);
   assert.equal(serializeGame(host.game, host.playerId).turn.isYou, false);
+});
+
+test('classic mode passes turn after hits and blocks powers', () => {
+  const store = new Map();
+  const host = createGame('Ada', store, 'classic');
+  const guest = joinGame(host.code, 'Bo', store);
+  placeFleet(host.code, host.playerId, fleetFromRows(0), store);
+  placeFleet(host.code, guest.playerId, fleetFromRows(5), store);
+
+  assert.equal(serializeGame(host.game, host.playerId).mode.id, 'classic');
+  assert.throws(
+    () => performAction(host.code, host.playerId, { ability: 'sonar', x: 0, y: 5 }, store),
+    /Arcade/
+  );
+
+  performAction(host.code, host.playerId, { ability: 'shot', x: 0, y: 5 }, store);
+  const hostState = serializeGame(host.game, host.playerId);
+  assert.equal(hostState.turn.isYou, false);
+  assert.equal(hostState.own.energy, 0);
 });
 
 test('sonar spends energy without changing turn', () => {
@@ -113,6 +133,7 @@ test('complete game can be won and records a fast-win score', () => {
   assert.equal(hostState.status, 'finished');
   assert.equal(hostState.winner.isYou, true);
   assert.equal(hostState.score.winnerName, 'Ada');
+  assert.equal(hostState.score.mode, 'arcade');
   assert.equal(hostState.score.shots, allGuestShipCells.length + 1);
   assert.equal(hostState.score.hits, allGuestShipCells.length);
   assert.equal(hostState.score.misses, 1);

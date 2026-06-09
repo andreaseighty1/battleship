@@ -13,6 +13,23 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const SONAR_COST = 2;
 const BARRAGE_COST = 5;
 const MAX_ENERGY = 9;
+const DEFAULT_MODE = 'arcade';
+const GAME_MODES = Object.freeze({
+  classic: Object.freeze({
+    id: 'classic',
+    label: 'Classic',
+    abilities: false,
+    hitKeepsTurn: false,
+    startingEnergy: 0
+  }),
+  arcade: Object.freeze({
+    id: 'arcade',
+    label: 'Arcade',
+    abilities: true,
+    hitKeepsTurn: true,
+    startingEnergy: 2
+  })
+});
 
 const FLEET = Object.freeze([
   Object.freeze({ id: 'carrier', name: 'Hangarfartyg', length: 5 }),
@@ -103,6 +120,26 @@ function normalizeCode(value) {
   return String(value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
+function normalizeMode(value) {
+  const mode = String(value || '').trim().toLowerCase();
+  return GAME_MODES[mode] ? mode : DEFAULT_MODE;
+}
+
+function modeSettings(gameOrMode) {
+  const mode = typeof gameOrMode === 'string' ? gameOrMode : gameOrMode && gameOrMode.mode;
+  return GAME_MODES[normalizeMode(mode)];
+}
+
+function publicMode(gameOrMode) {
+  const settings = modeSettings(gameOrMode);
+  return {
+    id: settings.id,
+    label: settings.label,
+    abilities: settings.abilities,
+    hitKeepsTurn: settings.hitKeepsTurn
+  };
+}
+
 function generateCode(store = games) {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   for (let attempt = 0; attempt < 80; attempt += 1) {
@@ -124,7 +161,7 @@ function createPlayer(name, index) {
     name: cleanName(name, index === 0 ? 'Värd' : 'Utmanare'),
     ships: null,
     ready: false,
-    energy: 2,
+    energy: 0,
     sonarScans: []
   };
 }
@@ -152,6 +189,7 @@ function publicScore(score) {
     code: score.code,
     winnerName: score.winnerName,
     opponentName: score.opponentName,
+    mode: normalizeMode(score.mode),
     durationMs: score.durationMs,
     shots,
     hits,
@@ -188,6 +226,7 @@ function recordHighScore(game, winner) {
   const stats = shotStatsFor(game, winner.id);
   const score = {
     code: game.code,
+    mode: normalizeMode(game.mode),
     winnerName: winner.name,
     opponentName: opponent ? opponent.name : null,
     durationMs: Math.max(0, finishedAt - startedAt),
@@ -205,11 +244,13 @@ function recordHighScore(game, winner) {
   return score;
 }
 
-function createGame(hostName, store = games) {
+function createGame(hostName, store = games, mode = DEFAULT_MODE) {
   const code = generateCode(store);
   const host = createPlayer(hostName, 0);
+  const gameMode = normalizeMode(mode);
   const game = {
     code,
+    mode: gameMode,
     createdAt: Date.now(),
     updatedAt: Date.now(),
     status: 'waiting',
@@ -225,7 +266,7 @@ function createGame(hostName, store = games) {
     log: []
   };
 
-  logEvent(game, 'system', `${host.name} skapade rummet.`);
+  logEvent(game, 'system', `${host.name} skapade ett ${modeSettings(gameMode).label}-rum.`);
   store.set(code, game);
   return { game, code, playerId: host.id };
 }
@@ -361,7 +402,7 @@ function placeFleet(codeInput, playerId, rawShips, store = games) {
 
   player.ships = validateFleet(rawShips);
   player.ready = true;
-  player.energy = 2;
+  player.energy = modeSettings(game).startingEnergy;
   player.sonarScans = [];
   touch(game);
   logEvent(game, 'system', `${player.name} är redo.`);
@@ -401,6 +442,7 @@ function addEnergy(player, amount) {
 }
 
 function resolveSingleShot(game, attacker, defender, x, y, source) {
+  const settings = modeSettings(game);
   const ship = findShipAt(defender, x, y);
   const shot = {
     x,
@@ -417,10 +459,14 @@ function resolveSingleShot(game, attacker, defender, x, y, source) {
     if (sunk) {
       shot.sunkShipId = ship.id;
       shot.sunkShipName = ship.name;
-      addEnergy(attacker, 3);
+      if (settings.abilities) {
+        addEnergy(attacker, 3);
+      }
       return { shot, hit: true, sunkShip: ship };
     }
-    addEnergy(attacker, 1);
+    if (settings.abilities) {
+      addEnergy(attacker, 1);
+    }
     return { shot, hit: true, sunkShip: null };
   }
 
@@ -441,6 +487,7 @@ function finishGame(game, winner) {
 }
 
 function performShot(game, attacker, defender, x, y) {
+  const settings = modeSettings(game);
   if (hasShotAt(game, attacker.id, x, y)) {
     fail(409, 'Du har redan skjutit på den rutan.');
   }
@@ -449,14 +496,18 @@ function performShot(game, attacker, defender, x, y) {
   if (outcome.sunkShip) {
     logEvent(game, 'hit', `${attacker.name} sänkte ${outcome.sunkShip.name} vid ${formatCell(x, y)}.`);
   } else if (outcome.hit) {
-    logEvent(game, 'hit', `${attacker.name} träffade vid ${formatCell(x, y)} och behåller turen.`);
+    if (settings.hitKeepsTurn) {
+      logEvent(game, 'hit', `${attacker.name} träffade vid ${formatCell(x, y)} och behåller turen.`);
+    } else {
+      logEvent(game, 'hit', `${attacker.name} träffade vid ${formatCell(x, y)}.`);
+    }
   } else {
     logEvent(game, 'miss', `${attacker.name} missade vid ${formatCell(x, y)}.`);
   }
 
   if (isFleetSunkBy(game, attacker.id, defender)) {
     finishGame(game, attacker);
-  } else if (!outcome.hit) {
+  } else if (!outcome.hit || !settings.hitKeepsTurn) {
     game.turnPlayerId = defender.id;
   }
 
@@ -476,6 +527,9 @@ function regionCells(centerX, centerY, radius) {
 }
 
 function performSonar(game, attacker, defender, x, y) {
+  if (!modeSettings(game).abilities) {
+    fail(409, 'Sonar finns bara i Arcade-laget.');
+  }
   if (attacker.energy < SONAR_COST) {
     fail(409, 'Du har inte tillräckligt med energi för sonar.');
   }
@@ -501,6 +555,9 @@ function barrageCells(centerX, centerY) {
 }
 
 function performBarrage(game, attacker, defender, x, y) {
+  if (!modeSettings(game).abilities) {
+    fail(409, 'Barrage finns bara i Arcade-laget.');
+  }
   if (attacker.energy < BARRAGE_COST) {
     fail(409, 'Du har inte tillräckligt med energi för barrage.');
   }
@@ -582,6 +639,7 @@ function serializeGame(game, playerId) {
 
   return {
     code: game.code,
+    mode: publicMode(game),
     status: game.status,
     boardSize: BOARD_SIZE,
     fleet: FLEET,
@@ -591,7 +649,7 @@ function serializeGame(game, playerId) {
       name: entry.name,
       isYou: entry.id === player.id,
       ready: entry.ready,
-      energy: entry.id === player.id ? entry.energy : undefined
+      energy: entry.id === player.id && modeSettings(game).abilities ? entry.energy : undefined
     })),
     turn: turnPlayer
       ? {
@@ -612,7 +670,7 @@ function serializeGame(game, playerId) {
     },
     own: {
       ready: player.ready,
-      energy: player.energy,
+      energy: modeSettings(game).abilities ? player.energy : 0,
       ships: player.ships || [],
       incomingShots: opponent ? (game.shotsByPlayer[opponent.id] || []).map(cloneShot) : []
     },
@@ -754,7 +812,7 @@ async function handleApi(req, res, url) {
     const body = await parseBody(req);
 
     if (parts[1] === 'create') {
-      const { game, code, playerId } = createGame(body.name);
+      const { game, code, playerId } = createGame(body.name, games, body.mode);
       sendJson(res, 201, { code, playerId, state: serializeGame(game, playerId) });
       return;
     }
@@ -859,6 +917,7 @@ if (require.main === module) {
 module.exports = {
   BARRAGE_COST,
   BOARD_SIZE,
+  GAME_MODES,
   FLEET,
   GameError,
   MAX_ENERGY,

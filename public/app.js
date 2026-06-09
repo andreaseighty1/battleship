@@ -10,6 +10,10 @@
     { id: 'submarine', name: 'Ubåt', length: 3 },
     { id: 'destroyer', name: 'Jagare', length: 2 }
   ];
+  const GAME_MODES = [
+    { id: 'arcade', label: 'Arcade', tag: 'Energi' },
+    { id: 'classic', label: 'Classic', tag: 'Rent spel' }
+  ];
 
   const app = document.querySelector('#app');
   const toast = document.querySelector('#toast');
@@ -29,6 +33,7 @@
   let placedShips = [];
   let hoverCell = null;
   let selectedAbility = 'shot';
+  let selectedMode = 'arcade';
   let toastTimer = null;
   let scores = [];
 
@@ -193,6 +198,25 @@
     return minutes ? `${minutes}m ${String(seconds).padStart(2, '0')}s` : `${seconds}s`;
   }
 
+  function normalizeModeId(value) {
+    const mode = String(value || '').toLowerCase();
+    return GAME_MODES.some((entry) => entry.id === mode) ? mode : 'arcade';
+  }
+
+  function modeLabel(value) {
+    const id = typeof value === 'object' && value ? value.id : value;
+    const mode = GAME_MODES.find((entry) => entry.id === normalizeModeId(id));
+    return mode ? mode.label : 'Arcade';
+  }
+
+  function currentMode() {
+    return state && state.mode ? state.mode : { id: 'arcade', label: 'Arcade', abilities: true, hitKeepsTurn: true };
+  }
+
+  function hasArcadePowers() {
+    return Boolean(currentMode().abilities);
+  }
+
   async function loadSession() {
     const session = storage.get();
     if (!session || !session.code || !session.playerId) {
@@ -327,6 +351,9 @@
   }
 
   function render() {
+    if (state && !hasArcadePowers()) {
+      selectedAbility = 'shot';
+    }
     app.innerHTML = `
       <header class="topbar">
         <div class="brand">
@@ -338,6 +365,7 @@
         </div>
         <div class="room-strip">
           ${state ? `<span class="chip">Kod <strong>${escapeHtml(state.code)}</strong></span>` : ''}
+          ${state ? `<span class="chip">${escapeHtml(modeLabel(state.mode))}</span>` : ''}
           <span class="chip ${state && state.status === 'playing' ? 'is-live' : ''}">${escapeHtml(statusLabel())}</span>
           ${state && state.turn ? `<span class="chip ${state.turn.isYou ? 'is-turn' : ''}">${escapeHtml(state.turn.playerName)}</span>` : ''}
           ${state ? '<button class="btn ghost" data-action="leave">Lämna</button>' : ''}
@@ -370,6 +398,7 @@
           <form class="form-grid" data-form="create">
             <h2>Skapa rum</h2>
             <input name="name" maxlength="24" placeholder="Ditt namn" autocomplete="nickname">
+            ${renderModeSelector()}
             <button class="btn primary" type="submit">Skapa kod</button>
           </form>
           <form class="form-grid" data-form="join">
@@ -391,6 +420,20 @@
           <div class="hero-hit"></div>
         </div>
       </section>
+    `;
+  }
+
+  function renderModeSelector() {
+    return `
+      <div class="mode-select" role="radiogroup" aria-label="Spelläge">
+        ${GAME_MODES.map((mode) => `
+          <label class="mode-option ${selectedMode === mode.id ? 'is-active' : ''}">
+            <input type="radio" name="mode" value="${escapeHtml(mode.id)}" ${selectedMode === mode.id ? 'checked' : ''}>
+            <strong>${escapeHtml(mode.label)}</strong>
+            <span>${escapeHtml(mode.tag)}</span>
+          </label>
+        `).join('')}
+      </div>
     `;
   }
 
@@ -445,7 +488,7 @@
         <div class="panel board-wrap">
           <div class="board-title">
             <h2>Din flotta</h2>
-            <span class="chip">${escapeHtml(state.own.energy)} energi</span>
+            ${hasArcadePowers() ? `<span class="chip">${escapeHtml(state.own.energy)} energi</span>` : `<span class="chip">${escapeHtml(modeLabel(state.mode))}</span>`}
           </div>
           ${renderBoard('own')}
         </div>
@@ -485,7 +528,7 @@
   }
 
   function renderPowerPanel() {
-    if (state.status !== 'playing') {
+    if (state.status !== 'playing' || !hasArcadePowers()) {
       return '';
     }
     const energyWidth = Math.round((state.own.energy / MAX_ENERGY) * 100);
@@ -572,7 +615,7 @@
         ${scores.slice(0, 5).map((score, index) => `
           <div class="score-row">
             <strong>${index + 1}. ${escapeHtml(score.winnerName)}</strong>
-            <span>${formatDuration(score.durationMs)} · ${score.hits}/${score.shots} träff · ${score.misses} miss</span>
+            <span>${escapeHtml(modeLabel(score.mode))} · ${formatDuration(score.durationMs)} · ${score.hits}/${score.shots} träff · ${score.misses} miss</span>
           </div>
         `).join('')}
       </div>
@@ -705,6 +748,12 @@
     document.querySelectorAll('[data-form="join"]').forEach((form) => {
       form.addEventListener('submit', handleJoin);
     });
+    document.querySelectorAll('input[name="mode"]').forEach((input) => {
+      input.addEventListener('change', () => {
+        selectedMode = normalizeModeId(input.value);
+        render();
+      });
+    });
     document.querySelectorAll('[data-action]').forEach((element) => {
       element.addEventListener('click', handleAction);
     });
@@ -733,8 +782,9 @@
   async function handleCreate(event) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    selectedMode = normalizeModeId(form.get('mode') || selectedMode);
     try {
-      const data = await api('/api/create', { name: form.get('name') });
+      const data = await api('/api/create', { name: form.get('name'), mode: selectedMode });
       storage.set({ backend: backendMode, code: data.code, playerId: data.playerId });
       state = data.state;
       resetLocalPlacement();
@@ -873,6 +923,11 @@
   }
 
   function selectAbility(ability) {
+    if (!hasArcadePowers() && ability !== 'shot') {
+      selectedAbility = 'shot';
+      render();
+      return;
+    }
     selectedAbility = ability;
     render();
   }
@@ -882,7 +937,8 @@
       return;
     }
     const cell = readCell(cellElement);
-    if (selectedAbility === 'shot' && shotAt(state.target.outgoingShots, cell.x, cell.y)) {
+    const ability = hasArcadePowers() ? selectedAbility : 'shot';
+    if (ability === 'shot' && shotAt(state.target.outgoingShots, cell.x, cell.y)) {
       showToast('Den rutan är redan beskjuten.');
       return;
     }
@@ -890,7 +946,7 @@
       const data = await api('/api/action', {
         code: state.code,
         playerId: state.playerId,
-        ability: selectedAbility,
+        ability,
         x: cell.x,
         y: cell.y
       });
@@ -898,7 +954,7 @@
       if (state.status === 'finished') {
         await loadScores();
       }
-      if (selectedAbility !== 'shot') {
+      if (ability !== 'shot') {
         selectedAbility = 'shot';
       }
       render();

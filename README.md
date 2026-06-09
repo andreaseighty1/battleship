@@ -2,6 +2,10 @@
 
 Ett online-sänka-skepp-spel med lobbykod, backend, klassiska koordinater och placeholder-grafik.
 
+## Grafik och assets
+
+GitHub Pages kan hosta spelets statiska grafik i repot, till exempel optimerade `webp`, `png`, `svg`, `css` och korta ljudfiler. Håll web assets små och lägg inte stora originalfiler, videor eller genererade bildbatcher i Git-historiken. Använd hellre komprimerade produktionsfiler i `public/assets/` när grafiken ska snyggas till.
+
 ## Kör lokalt
 
 ```powershell
@@ -29,13 +33,14 @@ npm.cmd test
 - Andra spelaren anger koden för att gå med.
 - Båda placerar fem klassiska skepp manuellt eller med auto-placering.
 - Spelplanerna visar klassiska koordinater: A-J och 1-10.
+- Skaparen väljer Classic eller Arcade när rummet skapas.
 - När båda är redo startar matchen.
-- Vanliga träffar ger energi och låter spelaren fortsätta.
-- Miss lämnar över turen.
-- Sonar kostar energi och visar hur många skeppsdelar som finns i ett 3x3-område.
-- Barrage kostar mer energi och skjuter ett kors med upp till fem rutor.
+- Classic växlar tur efter varje skott och har inga förmågor.
+- Arcade ger energi vid träffar, låter träffar behålla turen och aktiverar förmågor.
+- Sonar kostar energi och visar hur många skeppsdelar som finns i ett 3x3-område i Arcade.
+- Barrage kostar mer energi och skjuter ett kors med upp till fem rutor i Arcade.
 - Spelet räknar skott, träffar, missar och precision per match.
-- Topplistan rankar snabbast vunna matcher och visar skott, träffar och missar.
+- Topplistan rankar snabbast vunna matcher och visar mode, skott, träffar och missar.
 - Spelarnamn filtreras i backend med en enkel svensk/engelsk profanity-lista.
 
 Matcher och topplista sparas i minnet i den lokala backend-processen. Startas servern om försvinner aktiva rum och lokala scoreposter.
@@ -48,6 +53,7 @@ Supabase används som backend: Postgres lagrar matcher och topplista, en Edge Fu
 
 1. Skapa ett Supabase-projekt.
 2. Kör SQL-filen `supabase/migrations/20260609081500_battleship_arcade.sql` i Supabase SQL Editor eller via Supabase CLI.
+   Filen är säker att köra igen när schemat uppdateras, till exempel för att lägga till nya topplistekolumner.
 3. Deploya funktionen:
 
 ```powershell

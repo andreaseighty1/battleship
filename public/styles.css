@@ -214,6 +214,53 @@ input {
   gap: 10px;
 }
 
+.mode-select {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mode-option {
+  min-width: 0;
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.76);
+  cursor: pointer;
+}
+
+.mode-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mode-option strong,
+.mode-option span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.mode-option strong {
+  font-size: 0.95rem;
+  line-height: 1.1;
+}
+
+.mode-option span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.mode-option.is-active,
+.mode-option:has(input:checked) {
+  border-color: var(--ocean-a);
+  box-shadow: inset 4px 0 0 var(--ocean-a);
+  background: rgba(72, 159, 181, 0.12);
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
