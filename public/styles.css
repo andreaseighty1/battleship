@@ -345,6 +345,10 @@ input {
   background: transparent;
 }
 
+.audio-toggle {
+  min-width: 88px;
+}
+
 .hero-board {
   min-height: 410px;
   border: 1px solid rgba(255, 255, 255, 0.7);
@@ -366,6 +370,39 @@ input {
     linear-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.14) 1px, transparent 1px);
   background-size: 10% 10%;
+}
+
+.title-board {
+  display: grid;
+  place-items: center;
+  padding: clamp(18px, 4vw, 44px);
+  isolation: isolate;
+}
+
+.title-board::before {
+  z-index: 0;
+}
+
+.title-logo {
+  position: relative;
+  z-index: 2;
+  width: min(94%, 780px);
+  max-height: 86%;
+  object-fit: contain;
+  filter:
+    drop-shadow(0 18px 22px rgba(0, 0, 0, 0.28))
+    drop-shadow(0 2px 0 rgba(255, 255, 255, 0.38));
+}
+
+.title-waterline {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 1;
+  height: 34%;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, transparent, rgba(5, 44, 54, 0.32)),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.16), transparent 22%, rgba(255, 255, 255, 0.12) 55%, transparent);
 }
 
 .hero-ship {
@@ -405,6 +442,13 @@ input {
   top: 32%;
   background: center / contain no-repeat var(--hit-burst);
   filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.3));
+}
+
+.title-board .hero-hit {
+  z-index: 3;
+  right: 10%;
+  top: 14%;
+  opacity: 0.76;
 }
 
 .status-grid,
@@ -972,6 +1016,10 @@ button.cell:not(:disabled):hover {
     min-height: 280px;
   }
 
+  .title-board {
+    padding: 16px;
+  }
+
   .hero-ship.one {
     width: 160px;
   }
@@ -1091,6 +1139,18 @@ button.cell:not(:disabled):hover {
 
   .hero-board {
     min-height: 220px;
+  }
+
+  .title-logo {
+    width: 98%;
+    max-height: 82%;
+  }
+
+  .title-board .hero-hit {
+    width: 74px;
+    height: 60px;
+    right: 4%;
+    top: 12%;
   }
 
   .toast {

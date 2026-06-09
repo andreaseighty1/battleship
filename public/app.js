@@ -21,6 +21,22 @@
     submarine: 'assets/gfx/ship_3_squares_v2.png',
     destroyer: 'assets/gfx/ship_2_squares_v1.png'
   };
+  const TITLE_IMAGE = 'assets/gfx/battleship_logo_swe.png';
+  const MUSIC_ASSETS = {
+    title: 'assets/sounds/battleship_title.mp3',
+    battle: 'assets/sounds/battleship_battle.mp3'
+  };
+  const SOUND_ASSETS = {
+    fire: 'assets/sounds/fire.mp3',
+    hit: 'assets/sounds/hit.mp3',
+    miss: 'assets/sounds/miss.mp3',
+    sink: 'assets/sounds/sink.mp3',
+    sonar: 'assets/sounds/sonar.mp3',
+    barrage: 'assets/sounds/barrage.mp3',
+    victory: 'assets/sounds/victory.mp3',
+    defeat: 'assets/sounds/defeat.mp3'
+  };
+  const AUDIO_SETTING_KEY = 'battleship-audio';
 
   const app = document.querySelector('#app');
   const toast = document.querySelector('#toast');
@@ -43,6 +59,13 @@
   let selectedMode = 'arcade';
   let toastTimer = null;
   let scores = [];
+  let audioEnabled = readAudioPreference();
+  let audioUnlocked = false;
+  let audioUnlockListenerAttached = false;
+  let activeMusicKey = null;
+  let lastOutcomeSoundCode = null;
+  const musicPlayers = {};
+  const unavailableAudio = new Set();
 
   const storage = {
     get() {
@@ -77,6 +100,181 @@
     toastTimer = setTimeout(() => {
       toast.classList.remove('is-visible');
     }, 3200);
+  }
+
+  function readAudioPreference() {
+    try {
+      return localStorage.getItem(AUDIO_SETTING_KEY) !== 'off';
+    } catch {
+      return true;
+    }
+  }
+
+  function writeAudioPreference(value) {
+    try {
+      localStorage.setItem(AUDIO_SETTING_KEY, value ? 'on' : 'off');
+    } catch {
+      // Ignore localStorage failures; audio can still work for the current page.
+    }
+  }
+
+  function ensureAudioUnlockListener() {
+    if (audioUnlockListenerAttached) {
+      return;
+    }
+    audioUnlockListenerAttached = true;
+    document.addEventListener('pointerdown', unlockAudio, { once: true });
+    document.addEventListener('keydown', unlockAudio, { once: true });
+  }
+
+  function unlockAudio() {
+    if (!audioEnabled) {
+      return;
+    }
+    audioUnlocked = true;
+    syncMusic();
+  }
+
+  function desiredMusicKey() {
+    return state && state.status === 'playing' ? 'battle' : 'title';
+  }
+
+  function getMusicPlayer(key) {
+    if (musicPlayers[key]) {
+      return musicPlayers[key];
+    }
+    const src = MUSIC_ASSETS[key];
+    if (!src || unavailableAudio.has(`music:${key}`)) {
+      return null;
+    }
+    const player = new Audio(src);
+    player.loop = true;
+    player.preload = 'auto';
+    player.volume = key === 'battle' ? 0.34 : 0.28;
+    player.addEventListener('error', () => {
+      unavailableAudio.add(`music:${key}`);
+      if (activeMusicKey === key) {
+        activeMusicKey = null;
+      }
+    }, { once: true });
+    musicPlayers[key] = player;
+    return player;
+  }
+
+  function pauseMusic(exceptKey = null) {
+    Object.entries(musicPlayers).forEach(([key, player]) => {
+      if (key === exceptKey) {
+        return;
+      }
+      player.pause();
+      try {
+        player.currentTime = 0;
+      } catch {
+        // Some browsers do not allow seeking unloaded audio. Pausing is enough.
+      }
+    });
+    if (!exceptKey) {
+      activeMusicKey = null;
+    }
+  }
+
+  function syncMusic() {
+    if (!audioEnabled || !audioUnlocked) {
+      pauseMusic();
+      return;
+    }
+    const key = desiredMusicKey();
+    if (unavailableAudio.has(`music:${key}`)) {
+      pauseMusic();
+      return;
+    }
+    pauseMusic(key);
+    const player = getMusicPlayer(key);
+    if (!player) {
+      return;
+    }
+    activeMusicKey = key;
+    if (!player.paused) {
+      return;
+    }
+    player.play().catch(() => {
+      unavailableAudio.add(`music:${key}`);
+      if (activeMusicKey === key) {
+        activeMusicKey = null;
+      }
+    });
+  }
+
+  function playSound(name, volume = 0.55) {
+    if (!audioEnabled || !audioUnlocked) {
+      return false;
+    }
+    const src = SOUND_ASSETS[name];
+    const key = `sound:${name}`;
+    if (!src || unavailableAudio.has(key)) {
+      return false;
+    }
+    const player = new Audio(src);
+    player.preload = 'auto';
+    player.volume = volume;
+    player.addEventListener('error', () => unavailableAudio.add(key), { once: true });
+    player.play().catch(() => unavailableAudio.add(key));
+    return true;
+  }
+
+  function playShotResultSound(shots, fallbackHit) {
+    const shotList = Array.isArray(shots) ? shots : [];
+    const sunk = shotList.some((shot) => shot.sunkShipId) || fallbackHit === 'sunk';
+    const hit = shotList.some((shot) => shot.result === 'hit') || fallbackHit === 'hit' || sunk;
+    if (sunk) {
+      playSound('sink', 0.62);
+      return;
+    }
+    playSound(hit ? 'hit' : 'miss', hit ? 0.58 : 0.48);
+  }
+
+  function playActionSound(result, nextState) {
+    if (!result) {
+      return;
+    }
+    if (result.ability === 'sonar') {
+      playSound('sonar', 0.5);
+    } else if (result.ability === 'barrage') {
+      playSound('barrage', 0.54);
+      window.setTimeout(() => playShotResultSound(result.shots, null), 140);
+    } else {
+      playSound('fire', 0.42);
+      const fallback = result.sunkShip ? 'sunk' : (result.hit ? 'hit' : 'miss');
+      window.setTimeout(() => playShotResultSound(result.shot ? [result.shot] : [], fallback), 120);
+    }
+
+    if (nextState && nextState.status === 'finished' && nextState.winner) {
+      lastOutcomeSoundCode = nextState.code;
+      window.setTimeout(() => {
+        playSound(nextState.winner.isYou ? 'victory' : 'defeat', 0.66);
+      }, 420);
+    }
+  }
+
+  function playOutcomeSoundOnce() {
+    if (!state || state.status !== 'finished' || !state.winner || lastOutcomeSoundCode === state.code) {
+      return;
+    }
+    if (playSound(state.winner.isYou ? 'victory' : 'defeat', 0.66)) {
+      lastOutcomeSoundCode = state.code;
+    }
+  }
+
+  function toggleAudio() {
+    audioEnabled = !audioEnabled;
+    writeAudioPreference(audioEnabled);
+    if (audioEnabled) {
+      audioUnlocked = true;
+      syncMusic();
+    } else {
+      pauseMusic();
+    }
+    render();
   }
 
   async function api(path, payload) {
@@ -375,6 +573,7 @@
           ${state ? `<span class="chip">${escapeHtml(modeLabel(state.mode))}</span>` : ''}
           <span class="chip ${state && state.status === 'playing' ? 'is-live' : ''}">${escapeHtml(statusLabel())}</span>
           ${state && state.turn ? `<span class="chip ${state.turn.isYou ? 'is-turn' : ''}">${escapeHtml(state.turn.playerName)}</span>` : ''}
+          <button class="btn ghost audio-toggle" data-action="toggle-audio" type="button" aria-pressed="${audioEnabled ? 'true' : 'false'}">${audioEnabled ? 'Ljud på' : 'Ljud av'}</button>
           ${state ? '<button class="btn ghost" data-action="leave">Lämna</button>' : ''}
         </div>
       </header>
@@ -383,6 +582,8 @@
       </main>
     `;
     bindEvents();
+    playOutcomeSoundOnce();
+    syncMusic();
   }
 
   function renderScreen() {
@@ -421,9 +622,9 @@
             ${renderScoreList()}
           </div>
         </div>
-        <div class="hero-board" aria-hidden="true">
-          <div class="hero-ship one"></div>
-          <div class="hero-ship two"></div>
+        <div class="hero-board title-board" aria-hidden="true">
+          <img class="title-logo" src="${TITLE_IMAGE}" alt="">
+          <div class="title-waterline"></div>
           <div class="hero-hit"></div>
         </div>
       </section>
@@ -789,6 +990,7 @@
   }
 
   function bindEvents() {
+    ensureAudioUnlockListener();
     document.querySelectorAll('[data-form="create"]').forEach((form) => {
       form.addEventListener('submit', handleCreate);
     });
@@ -828,6 +1030,7 @@
 
   async function handleCreate(event) {
     event.preventDefault();
+    unlockAudio();
     const form = new FormData(event.currentTarget);
     selectedMode = normalizeModeId(form.get('mode') || selectedMode);
     try {
@@ -843,6 +1046,7 @@
 
   async function handleJoin(event) {
     event.preventDefault();
+    unlockAudio();
     const form = new FormData(event.currentTarget);
     try {
       const data = await api('/api/join', { name: form.get('name'), code: form.get('code') });
@@ -856,7 +1060,9 @@
   }
 
   function handleAction(event) {
+    unlockAudio();
     const action = event.currentTarget.dataset.action;
+    if (action === 'toggle-audio') return toggleAudio();
     if (action === 'leave') return leaveGame();
     if (action === 'new-game') return leaveGame();
     if (action === 'select-ship') return selectShip(event.currentTarget.dataset.ship);
@@ -998,6 +1204,7 @@
         y: cell.y
       });
       state = data.state;
+      playActionSound(data.result, state);
       if (state.status === 'finished') {
         await loadScores();
       }
