@@ -34,6 +34,12 @@ test('rejects overlapping ships', () => {
   assert.throws(() => validateFleet(fleet), /överlappa/);
 });
 
+test('rejects diagonal ships', () => {
+  const fleet = fleetFromRows(0);
+  fleet[0].cells = Array.from({ length: fleet[0].cells.length }, (_, index) => ({ x: index, y: index }));
+  assert.throws(() => validateFleet(fleet), /rakt/);
+});
+
 test('rejects profanity in player names', () => {
   const blockedName = ['f', 'u', 'c', 'k'].join('.');
   assert.throws(() => createGame(blockedName, new Map()), /annat namn/);

@@ -677,6 +677,11 @@ button.cell:not(:disabled):hover {
   border-color: rgba(17, 24, 31, 0.8);
 }
 
+.board.has-ship-overlays .cell.is-ship {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
 .cell.is-ship::before {
   content: "";
   position: absolute;
@@ -690,7 +695,7 @@ button.cell:not(:disabled):hover {
 }
 
 .ship-overlay {
-  z-index: 1;
+  z-index: 3;
   pointer-events: none;
   position: relative;
   min-width: 0;
@@ -725,15 +730,18 @@ button.cell:not(:disabled):hover {
 }
 
 .cell.is-preview {
+  z-index: 4;
   background: rgba(244, 211, 94, 0.44);
   border-color: rgba(23, 32, 42, 0.72);
 }
 
 .cell.is-bad-preview {
+  z-index: 4;
   background: rgba(209, 73, 91, 0.58);
 }
 
 .cell.is-hit {
+  z-index: 4;
   background:
     center / cover no-repeat var(--hit-burst),
     rgba(209, 73, 91, 0.72);
@@ -749,6 +757,7 @@ button.cell:not(:disabled):hover {
 }
 
 .cell.is-miss {
+  z-index: 4;
   background:
     center / cover no-repeat var(--miss-splash),
     rgba(242, 204, 143, 0.42);

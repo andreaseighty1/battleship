@@ -81,6 +81,7 @@
   let audioUnlockListenerAttached = false;
   let activeMusicKey = null;
   let lastOutcomeSoundCode = null;
+  let lastPlacementPointerAt = 0;
   const musicPlayers = {};
   const unavailableAudio = new Set();
 
@@ -944,9 +945,11 @@
 
     const fleetShip = FLEET.find((entry) => entry.id === ship.id) || {};
     const length = Number(ship.length || fleetShip.length || cells.length);
-    const sameColumn = cells.every((cell) => cell.x === cells[0].x);
-    const direction = sameColumn ? 'vertical' : 'horizontal';
-    const sorted = [...cells].sort((a, b) => (direction === 'horizontal' ? a.x - b.x : a.y - b.y));
+    const line = straightShipLine(cells, length);
+    if (!line) {
+      return '';
+    }
+    const { direction, cells: sorted } = line;
     const start = sorted[0];
     const columnSpan = direction === 'horizontal' ? length : 1;
     const rowSpan = direction === 'vertical' ? length : 1;
@@ -1041,22 +1044,44 @@
     }));
   }
 
+  function straightShipLine(cells, expectedLength = cells.length) {
+    if (!Array.isArray(cells) || cells.length !== expectedLength || !cells.length) {
+      return null;
+    }
+    const normalized = cells.map((cell) => ({ x: Number(cell.x), y: Number(cell.y) }));
+    if (normalized.some((cell) => !Number.isInteger(cell.x) || !Number.isInteger(cell.y))) {
+      return null;
+    }
+    const sameRow = normalized.every((cell) => cell.y === normalized[0].y);
+    const sameColumn = normalized.every((cell) => cell.x === normalized[0].x);
+    if (!sameRow && !sameColumn) {
+      return null;
+    }
+
+    const direction = sameColumn ? 'vertical' : 'horizontal';
+    const sorted = [...normalized].sort((a, b) => (direction === 'horizontal' ? a.x - b.x : a.y - b.y));
+    const start = sorted[0];
+    const contiguous = sorted.every((cell, index) => (
+      cell.x === start.x + (direction === 'horizontal' ? index : 0)
+      && cell.y === start.y + (direction === 'vertical' ? index : 0)
+    ));
+    return contiguous ? { direction, cells: sorted } : null;
+  }
+
   function placementCandidate(cell, ship) {
-    const directions = orientation === 'horizontal' ? ['horizontal', 'vertical'] : ['vertical', 'horizontal'];
-    for (const direction of directions) {
-      const cells = cellsForShip(cell.x, cell.y, ship.length, direction);
-      if (isPlacementValid(cells, ship.id)) {
-        return { cells, direction };
-      }
+    const cells = cellsForShip(cell.x, cell.y, ship.length, orientation);
+    if (isPlacementValid(cells, ship.id, ship.length)) {
+      return { cells, direction: orientation };
     }
     return null;
   }
 
-  function isPlacementValid(cells, shipId) {
-    if (cells.some((cell) => cell.x < 0 || cell.y < 0 || cell.x >= BOARD_SIZE || cell.y >= BOARD_SIZE)) {
+  function isPlacementValid(cells, shipId, expectedLength = cells.length) {
+    const line = straightShipLine(cells, expectedLength);
+    if (!line || line.cells.some((cell) => cell.x < 0 || cell.y < 0 || cell.x >= BOARD_SIZE || cell.y >= BOARD_SIZE)) {
       return false;
     }
-    return cells.every((cell) => {
+    return line.cells.every((cell) => {
       const existing = shipAt(placedShips.filter((ship) => ship.id !== shipId), cell.x, cell.y);
       return !existing;
     });
@@ -1093,9 +1118,22 @@
     document.querySelectorAll('[data-action]').forEach((element) => {
       element.addEventListener('click', handleAction);
     });
-    document.querySelectorAll('[data-cell]').forEach((cell) => {
+    document.querySelectorAll('[data-cell="placement"]').forEach((cell) => {
+      cell.addEventListener('pointerenter', () => updatePlacementHover(cell));
+      cell.addEventListener('focus', () => updatePlacementHover(cell));
+      cell.addEventListener('pointerup', handlePlacementPointer);
+      cell.addEventListener('click', handlePlacementClick);
+    });
+    document.querySelectorAll('[data-cell="target"]').forEach((cell) => {
       cell.addEventListener('click', handleAction);
     });
+    const placementBoard = document.querySelector('[data-board="placement"]');
+    if (placementBoard) {
+      placementBoard.addEventListener('pointerleave', () => {
+        hoverCell = null;
+        render();
+      });
+    }
   }
 
   async function handleCreate(event) {
@@ -1159,6 +1197,30 @@
     if (event.currentTarget.dataset.cell === 'placement') return placeSelectedShip(event.currentTarget);
     if (event.currentTarget.dataset.cell === 'target') return targetCell(event.currentTarget);
     return undefined;
+  }
+
+  function updatePlacementHover(cell) {
+    hoverCell = readCell(cell);
+    render();
+  }
+
+  function handlePlacementPointer(event) {
+    if (event.pointerType === 'mouse' && event.button !== 0) {
+      return;
+    }
+    lastPlacementPointerAt = Date.now();
+    event.preventDefault();
+    event.stopPropagation();
+    unlockAudio();
+    placeSelectedShip(event.currentTarget);
+  }
+
+  function handlePlacementClick(event) {
+    if (Date.now() - lastPlacementPointerAt < 350) {
+      return;
+    }
+    unlockAudio();
+    placeSelectedShip(event.currentTarget);
   }
 
   async function leaveGame() {
