@@ -1,0 +1,921 @@
+(function () {
+  'use strict';
+
+  const BOARD_SIZE = 10;
+  const MAX_ENERGY = 9;
+  const FLEET = [
+    { id: 'carrier', name: 'Hangarfartyg', length: 5 },
+    { id: 'battleship', name: 'Slagskepp', length: 4 },
+    { id: 'cruiser', name: 'Kryssare', length: 3 },
+    { id: 'submarine', name: 'Ubåt', length: 3 },
+    { id: 'destroyer', name: 'Jagare', length: 2 }
+  ];
+
+  const app = document.querySelector('#app');
+  const toast = document.querySelector('#toast');
+  const runtimeConfig = window.BATTLESHIP_CONFIG || {};
+  const backendMode = runtimeConfig.backend === 'supabase' ? 'supabase' : 'local';
+  const supabaseFunctionName = runtimeConfig.supabaseFunctionName || 'battleship';
+  const supabaseSdkUrl = runtimeConfig.supabaseSdkUrl || 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+
+  let state = null;
+  let eventSource = null;
+  let realtimeChannel = null;
+  let pollTimer = null;
+  let supabaseClient = null;
+  let supabaseSdkPromise = null;
+  let selectedShipId = FLEET[0].id;
+  let orientation = 'horizontal';
+  let placedShips = [];
+  let hoverCell = null;
+  let selectedAbility = 'shot';
+  let toastTimer = null;
+  let scores = [];
+
+  const storage = {
+    get() {
+      try {
+        return JSON.parse(localStorage.getItem('battleship-session') || 'null');
+      } catch {
+        return null;
+      }
+    },
+    set(session) {
+      localStorage.setItem('battleship-session', JSON.stringify(session));
+    },
+    clear() {
+      localStorage.removeItem('battleship-session');
+    }
+  };
+
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;'
+    })[char]);
+  }
+
+  function showToast(message) {
+    clearTimeout(toastTimer);
+    toast.textContent = message;
+    toast.classList.add('is-visible');
+    toastTimer = setTimeout(() => {
+      toast.classList.remove('is-visible');
+    }, 3200);
+  }
+
+  async function api(path, payload) {
+    if (backendMode === 'supabase') {
+      return supabaseFunctionFetch(path, { method: 'POST', payload });
+    }
+
+    const response = await fetch(path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Något gick fel.');
+    }
+    return data;
+  }
+
+  function getSupabaseSettings() {
+    const supabaseUrl = String(runtimeConfig.supabaseUrl || '').replace(/\/+$/, '');
+    const supabaseAnonKey = String(runtimeConfig.supabaseAnonKey || '');
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error('Supabase saknar URL eller anon key i public/config.js.');
+    }
+    return { supabaseUrl, supabaseAnonKey };
+  }
+
+  function supabasePath(path) {
+    return String(path).replace(/^\/api/, '') || '/';
+  }
+
+  async function supabaseFunctionFetch(path, options = {}) {
+    const { supabaseUrl, supabaseAnonKey } = getSupabaseSettings();
+    const method = options.method || 'GET';
+    const headers = {
+      apikey: supabaseAnonKey,
+      authorization: `Bearer ${supabaseAnonKey}`
+    };
+    const request = { method, headers };
+
+    if (options.payload !== undefined) {
+      headers['content-type'] = 'application/json';
+      request.body = JSON.stringify(options.payload);
+    }
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/${supabaseFunctionName}${supabasePath(path)}`, request);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Något gick fel.');
+    }
+    return data;
+  }
+
+  async function loadSupabaseSdk() {
+    if (window.supabase && window.supabase.createClient) {
+      return window.supabase;
+    }
+    if (!supabaseSdkPromise) {
+      supabaseSdkPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = supabaseSdkUrl;
+        script.async = true;
+        script.onload = () => resolve(window.supabase);
+        script.onerror = () => reject(new Error('Kunde inte ladda Supabase SDK.'));
+        document.head.appendChild(script);
+      });
+    }
+    const sdk = await supabaseSdkPromise;
+    if (!sdk || !sdk.createClient) {
+      throw new Error('Supabase SDK saknas.');
+    }
+    return sdk;
+  }
+
+  async function getSupabaseClient() {
+    if (!supabaseClient) {
+      const { supabaseUrl, supabaseAnonKey } = getSupabaseSettings();
+      const sdk = await loadSupabaseSdk();
+      supabaseClient = sdk.createClient(supabaseUrl, supabaseAnonKey);
+    }
+    return supabaseClient;
+  }
+
+  async function fetchState(code, playerId) {
+    if (backendMode === 'supabase') {
+      return supabaseFunctionFetch(`/state/${encodeURIComponent(code)}/${encodeURIComponent(playerId)}`);
+    }
+
+    const response = await fetch(`/api/state/${encodeURIComponent(code)}/${encodeURIComponent(playerId)}`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Sessionen finns inte kvar.');
+    }
+    return data;
+  }
+
+  async function fetchScores() {
+    if (backendMode === 'supabase') {
+      return supabaseFunctionFetch('/scores');
+    }
+
+    const response = await fetch('/api/scores');
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Kunde inte hämta topplistan.');
+    }
+    return data;
+  }
+
+  async function loadScores() {
+    try {
+      const data = await fetchScores();
+      scores = Array.isArray(data.scores) ? data.scores : [];
+    } catch {
+      scores = [];
+    }
+  }
+
+  function formatDuration(ms) {
+    const totalSeconds = Math.max(0, Math.round(Number(ms || 0) / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return minutes ? `${minutes}m ${String(seconds).padStart(2, '0')}s` : `${seconds}s`;
+  }
+
+  async function loadSession() {
+    const session = storage.get();
+    if (!session || !session.code || !session.playerId) {
+      render();
+      return;
+    }
+    if (session.backend && session.backend !== backendMode) {
+      storage.clear();
+      render();
+      return;
+    }
+
+    try {
+      const data = await fetchState(session.code, session.playerId);
+      state = data.state;
+      syncPlacedShips();
+      connectEvents(session.code, session.playerId);
+    } catch {
+      storage.clear();
+      state = null;
+      render();
+    }
+  }
+
+  function connectEvents(code, playerId) {
+    disconnectLiveUpdates();
+    if (backendMode === 'supabase') {
+      startPolling(code, playerId, 4000);
+      connectSupabaseRealtime(code, playerId).catch(() => {
+        showToast('Liveuppdatering föll tillbaka till pollning.');
+      });
+      return;
+    }
+
+    eventSource = new EventSource(`/api/events/${encodeURIComponent(code)}/${encodeURIComponent(playerId)}`);
+    eventSource.addEventListener('state', (event) => {
+      state = JSON.parse(event.data);
+      syncPlacedShips();
+      if (state.status === 'finished') {
+        loadScores().then(render).catch(() => render());
+        return;
+      }
+      render();
+    });
+    eventSource.onerror = () => {
+      showToast('Anslutningen försöker återhämta sig.');
+    };
+  }
+
+  function disconnectLiveUpdates() {
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+    if (realtimeChannel && supabaseClient) {
+      supabaseClient.removeChannel(realtimeChannel);
+    }
+    realtimeChannel = null;
+  }
+
+  async function refreshState(code, playerId) {
+    const data = await fetchState(code, playerId);
+    state = data.state;
+    syncPlacedShips();
+    if (state.status === 'finished') {
+      await loadScores();
+    }
+    render();
+  }
+
+  function startPolling(code, playerId, intervalMs) {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+    }
+    pollTimer = setInterval(() => {
+      refreshState(code, playerId).catch(() => undefined);
+    }, intervalMs);
+  }
+
+  async function connectSupabaseRealtime(code, playerId) {
+    const client = await getSupabaseClient();
+    realtimeChannel = client
+      .channel(`battleship-${code}-${playerId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'battleship_game_ticks',
+          filter: `code=eq.${code}`
+        },
+        () => {
+          refreshState(code, playerId).catch(() => undefined);
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          startPolling(code, playerId, 12000);
+          refreshState(code, playerId).catch(() => undefined);
+        }
+      });
+  }
+
+  function syncPlacedShips() {
+    if (!state || state.status !== 'placing' || placedShips.length) {
+      return;
+    }
+    placedShips = (state.own.ships || []).map((ship) => ({
+      id: ship.id,
+      cells: ship.cells.map((cell) => ({ x: cell.x, y: cell.y }))
+    }));
+  }
+
+  function resetLocalPlacement() {
+    placedShips = [];
+    hoverCell = null;
+    selectedShipId = FLEET[0].id;
+    orientation = 'horizontal';
+  }
+
+  function statusLabel() {
+    if (!state) return 'Start';
+    if (state.status === 'waiting') return 'Väntar';
+    if (state.status === 'placing') return 'Placering';
+    if (state.status === 'playing') return state.turn && state.turn.isYou ? 'Din tur' : 'Motståndarens tur';
+    if (state.status === 'finished') return 'Avgjord';
+    return state.status;
+  }
+
+  function render() {
+    app.innerHTML = `
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true"></div>
+          <div>
+            <h1>BattleShip Arcade</h1>
+            <p>${state ? escapeHtml(state.playerName) : 'Online sänka skepp'}</p>
+          </div>
+        </div>
+        <div class="room-strip">
+          ${state ? `<span class="chip">Kod <strong>${escapeHtml(state.code)}</strong></span>` : ''}
+          <span class="chip ${state && state.status === 'playing' ? 'is-live' : ''}">${escapeHtml(statusLabel())}</span>
+          ${state && state.turn ? `<span class="chip ${state.turn.isYou ? 'is-turn' : ''}">${escapeHtml(state.turn.playerName)}</span>` : ''}
+          ${state ? '<button class="btn ghost" data-action="leave">Lämna</button>' : ''}
+        </div>
+      </header>
+      <main class="screen">
+        ${renderScreen()}
+      </main>
+    `;
+    bindEvents();
+  }
+
+  function renderScreen() {
+    if (!state) {
+      return renderHome();
+    }
+    if (state.status === 'waiting') {
+      return renderWaiting();
+    }
+    if (state.status === 'placing') {
+      return renderPlacement();
+    }
+    return renderGame();
+  }
+
+  function renderHome() {
+    return `
+      <section class="home-grid">
+        <div class="panel home-actions">
+          <form class="form-grid" data-form="create">
+            <h2>Skapa rum</h2>
+            <input name="name" maxlength="24" placeholder="Ditt namn" autocomplete="nickname">
+            <button class="btn primary" type="submit">Skapa kod</button>
+          </form>
+          <form class="form-grid" data-form="join">
+            <h2>Gå med</h2>
+            <div class="join-grid">
+              <input name="name" maxlength="24" placeholder="Ditt namn" autocomplete="nickname">
+              <input name="code" maxlength="7" placeholder="Kod" autocomplete="off">
+            </div>
+            <button class="btn accent" type="submit">Anslut</button>
+          </form>
+          <div>
+            <h2>Topplista</h2>
+            ${renderScoreList()}
+          </div>
+        </div>
+        <div class="hero-board" aria-hidden="true">
+          <div class="hero-ship one"></div>
+          <div class="hero-ship two"></div>
+          <div class="hero-hit"></div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderWaiting() {
+    return `
+      <section class="status-grid">
+        <div class="panel">
+          <h2>Rumskod</h2>
+          <div class="code-value">${escapeHtml(state.code)}</div>
+        </div>
+        <div class="panel">
+          <h2>Spelare</h2>
+          ${renderPlayers()}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderPlacement() {
+    const canReady = placedShips.length === FLEET.length;
+    const locked = state.own.ready;
+    return `
+      <section class="status-grid">
+        <div class="panel">
+          <h2>Flotta</h2>
+          <div class="fleet-list">${FLEET.map(renderShipButton).join('')}</div>
+          <div class="toolbar" style="margin-top: 12px;">
+            <div class="segmented" role="group" aria-label="Riktning">
+              <button data-action="orientation" data-orientation="horizontal" class="${orientation === 'horizontal' ? 'is-active' : ''}" type="button" ${locked ? 'disabled' : ''}>Vågrät</button>
+              <button data-action="orientation" data-orientation="vertical" class="${orientation === 'vertical' ? 'is-active' : ''}" type="button" ${locked ? 'disabled' : ''}>Lodrät</button>
+            </div>
+            <button class="btn" data-action="auto-place" type="button" ${locked ? 'disabled' : ''}>Auto</button>
+            <button class="btn" data-action="clear-place" type="button" ${locked ? 'disabled' : ''}>Rensa</button>
+            <button class="btn primary" data-action="ready" type="button" ${canReady && !locked ? '' : 'disabled'}>Redo</button>
+          </div>
+        </div>
+        <div class="panel board-wrap">
+          <div class="board-title">
+            <h2>Din spelplan</h2>
+            <span class="chip">${locked ? 'Låst' : `${placedShips.length}/${FLEET.length}`}</span>
+          </div>
+          ${renderBoard('placement')}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderGame() {
+    const finished = state.status === 'finished';
+    return `
+      <section class="game-grid">
+        <div class="panel board-wrap">
+          <div class="board-title">
+            <h2>Din flotta</h2>
+            <span class="chip">${escapeHtml(state.own.energy)} energi</span>
+          </div>
+          ${renderBoard('own')}
+        </div>
+        <div class="panel board-wrap">
+          <div class="board-title">
+            <h2>${escapeHtml(state.target.opponentName || 'Motståndare')}</h2>
+            <span class="chip ${state.turn && state.turn.isYou ? 'is-turn' : ''}">${finished ? escapeHtml(state.winner.playerName) : escapeHtml(statusLabel())}</span>
+          </div>
+          ${renderBoard('target')}
+        </div>
+        <aside class="panel side-panel">
+          ${renderOutcome()}
+          ${renderPowerPanel()}
+          ${renderStatsPanel()}
+          <h3>Topplista</h3>
+          ${renderScoreList()}
+          <h3>Spelare</h3>
+          ${renderPlayers()}
+          <h3 style="margin-top: 16px;">Logg</h3>
+          ${renderLog()}
+        </aside>
+      </section>
+    `;
+  }
+
+  function renderOutcome() {
+    if (state.status !== 'finished') {
+      return '';
+    }
+    return `
+      <div class="energy">
+        <h2>${state.winner.isYou ? 'Seger' : 'Förlust'}</h2>
+        ${state.score ? `<div class="score-summary">${escapeHtml(state.score.winnerName)} vann på ${formatDuration(state.score.durationMs)} med ${state.score.shots} skott, ${state.score.hits} träff och ${state.score.misses} miss.</div>` : ''}
+        <button class="btn primary" data-action="new-game" type="button">Nytt spel</button>
+      </div>
+    `;
+  }
+
+  function renderPowerPanel() {
+    if (state.status !== 'playing') {
+      return '';
+    }
+    const energyWidth = Math.round((state.own.energy / MAX_ENERGY) * 100);
+    const disabled = !(state.turn && state.turn.isYou);
+    return `
+      <div class="energy">
+        <h3>Energi</h3>
+        <div class="energy-bar" style="--energy-width: ${energyWidth}%"><span></span></div>
+      </div>
+      <div class="toolbox">
+        ${renderAbility('shot', 'Skott', '0', disabled)}
+        ${renderAbility('sonar', 'Sonar', '2', disabled || state.own.energy < 2)}
+        ${renderAbility('barrage', 'Barrage', '5', disabled || state.own.energy < 5)}
+      </div>
+    `;
+  }
+
+  function renderAbility(id, name, cost, disabled) {
+    return `
+      <button class="ability-button ${selectedAbility === id ? 'is-active' : ''}" data-action="ability" data-ability="${id}" type="button" ${disabled ? 'disabled' : ''}>
+        <strong>${escapeHtml(name)}</strong>
+        <span>${cost}</span>
+      </button>
+    `;
+  }
+
+  function renderStatsPanel() {
+    if (!state || !state.stats) {
+      return '';
+    }
+    const outgoing = state.stats.outgoing || { shots: 0, hits: 0, misses: 0, accuracy: 0 };
+    const incoming = state.stats.incoming || { shots: 0, hits: 0, misses: 0, accuracy: 0 };
+    return `
+      <h3>Statistik</h3>
+      <div class="stat-grid">
+        <div class="stat-tile">
+          <strong>${outgoing.hits}/${outgoing.shots}</strong>
+          <span>Dina träff</span>
+        </div>
+        <div class="stat-tile">
+          <strong>${outgoing.misses}</strong>
+          <span>Dina miss</span>
+        </div>
+        <div class="stat-tile">
+          <strong>${outgoing.accuracy}%</strong>
+          <span>Precision</span>
+        </div>
+        <div class="stat-tile muted">
+          <strong>${incoming.hits}/${incoming.shots}</strong>
+          <span>Mot dig</span>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderPlayers() {
+    return `
+      <div class="players-list">
+        ${state.players.map((player) => `
+          <div class="player-row">
+            <strong>${escapeHtml(player.name)}${player.isYou ? ' · du' : ''}</strong>
+            <span class="player-state">${player.ready ? 'Redo' : 'Väntar'}</span>
+          </div>
+        `).join('')}
+        ${state.players.length < 2 ? '<div class="empty-state">Väntar på spelare</div>' : ''}
+      </div>
+    `;
+  }
+
+  function renderLog() {
+    const entries = [...(state.log || [])].reverse();
+    if (!entries.length) {
+      return '<div class="empty-state">Ingen logg än</div>';
+    }
+    return `<div class="log-list">${entries.map((entry) => `<div class="log-item" data-type="${escapeHtml(entry.type)}">${escapeHtml(entry.text)}</div>`).join('')}</div>`;
+  }
+
+  function renderScoreList() {
+    if (!scores.length) {
+      return '<div class="empty-state compact">Ingen topplista än</div>';
+    }
+    return `
+      <div class="score-list">
+        ${scores.slice(0, 5).map((score, index) => `
+          <div class="score-row">
+            <strong>${index + 1}. ${escapeHtml(score.winnerName)}</strong>
+            <span>${formatDuration(score.durationMs)} · ${score.hits}/${score.shots} träff · ${score.misses} miss</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function renderShipButton(ship) {
+    const placed = placedShips.some((entry) => entry.id === ship.id);
+    return `
+      <button class="ship-button ${selectedShipId === ship.id ? 'is-active' : ''} ${placed ? 'is-placed' : ''}" data-action="select-ship" data-ship="${ship.id}" type="button" ${state && state.own.ready ? 'disabled' : ''}>
+        <strong>${escapeHtml(ship.name)}</strong>
+        <span class="ship-pips">${'<span></span>'.repeat(ship.length)}</span>
+      </button>
+    `;
+  }
+
+  function renderBoard(type) {
+    const cells = [];
+    const columns = [];
+    const rows = [];
+    for (let y = 0; y < BOARD_SIZE; y += 1) {
+      rows.push(`<span class="axis-label">${y + 1}</span>`);
+      for (let x = 0; x < BOARD_SIZE; x += 1) {
+        if (y === 0) {
+          columns.push(`<span class="axis-label">${String.fromCharCode(65 + x)}</span>`);
+        }
+        cells.push(renderCell(type, x, y));
+      }
+    }
+    return `
+      <div class="board-shell" data-board-shell="${type}">
+        <div class="axis-corner" aria-hidden="true"></div>
+        <div class="axis-labels axis-cols" aria-hidden="true">${columns.join('')}</div>
+        <div class="axis-labels axis-rows" aria-hidden="true">${rows.join('')}</div>
+        <div class="board" data-board="${type}">${cells.join('')}</div>
+      </div>
+    `;
+  }
+
+  function renderCell(type, x, y) {
+    const classes = ['cell'];
+    let content = '';
+    let disabled = true;
+    const attrs = `data-x="${x}" data-y="${y}"`;
+
+    if (type === 'placement') {
+      const ship = shipAt(placedShips, x, y);
+      const preview = previewCells();
+      const inPreview = preview.cells.some((cell) => cell.x === x && cell.y === y);
+      if (ship) classes.push('is-ship');
+      if (inPreview) classes.push(preview.valid ? 'is-preview' : 'is-bad-preview');
+      disabled = Boolean(state && state.own.ready);
+    }
+
+    if (type === 'own') {
+      const ship = shipAt(state.own.ships, x, y);
+      const incoming = shotAt(state.own.incomingShots, x, y);
+      if (ship) classes.push('is-ship');
+      if (incoming) {
+        classes.push(incoming.result === 'hit' ? 'is-hit' : 'is-miss');
+        if (incoming.sunkShipId) classes.push('is-sunk');
+      }
+    }
+
+    if (type === 'target') {
+      const outgoing = shotAt(state.target.outgoingShots, x, y);
+      const scan = sonarAt(x, y);
+      if (scan.inRegion) classes.push('is-sonar');
+      if (outgoing) {
+        classes.push(outgoing.result === 'hit' ? 'is-hit' : 'is-miss');
+        if (outgoing.sunkShipId) classes.push('is-sunk');
+      }
+      if (scan.center && !outgoing) {
+        content = `<span class="scan-count">${scan.center.count}</span>`;
+      }
+      disabled = !(state.status === 'playing' && state.turn && state.turn.isYou);
+    }
+
+    return `<button class="${classes.join(' ')}" ${attrs} data-cell="${type}" type="button" ${disabled ? 'disabled' : ''}>${content}</button>`;
+  }
+
+  function shotAt(shots, x, y) {
+    return (shots || []).find((shot) => shot.x === x && shot.y === y) || null;
+  }
+
+  function shipAt(ships, x, y) {
+    return (ships || []).find((ship) => ship.cells.some((cell) => cell.x === x && cell.y === y)) || null;
+  }
+
+  function sonarAt(x, y) {
+    const scans = state && state.target ? state.target.sonarScans : [];
+    const center = scans.find((scan) => scan.x === x && scan.y === y) || null;
+    const inRegion = scans.some((scan) => Math.abs(scan.x - x) <= 1 && Math.abs(scan.y - y) <= 1);
+    return { center, inRegion };
+  }
+
+  function previewCells() {
+    if (!hoverCell) {
+      return { cells: [], valid: false };
+    }
+    const ship = FLEET.find((entry) => entry.id === selectedShipId);
+    if (!ship || placedShips.some((entry) => entry.id === ship.id)) {
+      return { cells: [], valid: false };
+    }
+    const cells = cellsForShip(hoverCell.x, hoverCell.y, ship.length, orientation);
+    return { cells, valid: isPlacementValid(cells, ship.id) };
+  }
+
+  function cellsForShip(x, y, length, direction) {
+    return Array.from({ length }, (_, index) => ({
+      x: x + (direction === 'horizontal' ? index : 0),
+      y: y + (direction === 'vertical' ? index : 0)
+    }));
+  }
+
+  function isPlacementValid(cells, shipId) {
+    if (cells.some((cell) => cell.x < 0 || cell.y < 0 || cell.x >= BOARD_SIZE || cell.y >= BOARD_SIZE)) {
+      return false;
+    }
+    return cells.every((cell) => {
+      const existing = shipAt(placedShips.filter((ship) => ship.id !== shipId), cell.x, cell.y);
+      return !existing;
+    });
+  }
+
+  function bindEvents() {
+    document.querySelectorAll('[data-form="create"]').forEach((form) => {
+      form.addEventListener('submit', handleCreate);
+    });
+    document.querySelectorAll('[data-form="join"]').forEach((form) => {
+      form.addEventListener('submit', handleJoin);
+    });
+    document.querySelectorAll('[data-action]').forEach((element) => {
+      element.addEventListener('click', handleAction);
+    });
+    document.querySelectorAll('[data-cell]').forEach((cell) => {
+      cell.addEventListener('click', handleAction);
+    });
+    document.querySelectorAll('[data-cell="placement"]').forEach((cell) => {
+      cell.addEventListener('mouseenter', () => {
+        hoverCell = readCell(cell);
+        render();
+      });
+      cell.addEventListener('focus', () => {
+        hoverCell = readCell(cell);
+        render();
+      });
+    });
+    const placementBoard = document.querySelector('[data-board="placement"]');
+    if (placementBoard) {
+      placementBoard.addEventListener('mouseleave', () => {
+        hoverCell = null;
+        render();
+      });
+    }
+  }
+
+  async function handleCreate(event) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    try {
+      const data = await api('/api/create', { name: form.get('name') });
+      storage.set({ backend: backendMode, code: data.code, playerId: data.playerId });
+      state = data.state;
+      resetLocalPlacement();
+      connectEvents(data.code, data.playerId);
+    } catch (error) {
+      showToast(error.message);
+    }
+  }
+
+  async function handleJoin(event) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    try {
+      const data = await api('/api/join', { name: form.get('name'), code: form.get('code') });
+      storage.set({ backend: backendMode, code: data.code, playerId: data.playerId });
+      state = data.state;
+      resetLocalPlacement();
+      connectEvents(data.code, data.playerId);
+    } catch (error) {
+      showToast(error.message);
+    }
+  }
+
+  function handleAction(event) {
+    const action = event.currentTarget.dataset.action;
+    if (action === 'leave') return leaveGame();
+    if (action === 'new-game') return leaveGame();
+    if (action === 'select-ship') return selectShip(event.currentTarget.dataset.ship);
+    if (action === 'orientation') return setOrientation(event.currentTarget.dataset.orientation);
+    if (action === 'auto-place') return autoPlace();
+    if (action === 'clear-place') return clearPlacement();
+    if (action === 'ready') return submitPlacement();
+    if (action === 'ability') return selectAbility(event.currentTarget.dataset.ability);
+    if (event.currentTarget.dataset.cell === 'placement') return placeSelectedShip(event.currentTarget);
+    if (event.currentTarget.dataset.cell === 'target') return targetCell(event.currentTarget);
+    return undefined;
+  }
+
+  function leaveGame() {
+    disconnectLiveUpdates();
+    storage.clear();
+    state = null;
+    selectedAbility = 'shot';
+    resetLocalPlacement();
+    render();
+  }
+
+  function selectShip(shipId) {
+    if (state && state.own.ready) {
+      return;
+    }
+    selectedShipId = shipId;
+    render();
+  }
+
+  function setOrientation(nextOrientation) {
+    if (state && state.own.ready) {
+      return;
+    }
+    orientation = nextOrientation === 'vertical' ? 'vertical' : 'horizontal';
+    render();
+  }
+
+  function clearPlacement() {
+    if (state && state.own.ready) {
+      return;
+    }
+    resetLocalPlacement();
+    render();
+  }
+
+  function placeSelectedShip(cellElement) {
+    if (state && state.own.ready) {
+      return;
+    }
+    const ship = FLEET.find((entry) => entry.id === selectedShipId);
+    if (!ship || placedShips.some((entry) => entry.id === ship.id)) {
+      return;
+    }
+    const cell = readCell(cellElement);
+    const cells = cellsForShip(cell.x, cell.y, ship.length, orientation);
+    if (!isPlacementValid(cells, ship.id)) {
+      showToast('Skeppet får inte ligga där.');
+      return;
+    }
+    placedShips.push({ id: ship.id, cells });
+    const next = FLEET.find((entry) => !placedShips.some((shipEntry) => shipEntry.id === entry.id));
+    selectedShipId = next ? next.id : selectedShipId;
+    hoverCell = null;
+    render();
+  }
+
+  function autoPlace() {
+    if (state && state.own.ready) {
+      return;
+    }
+    const ships = [];
+    for (const ship of FLEET) {
+      let placed = false;
+      for (let attempt = 0; attempt < 400 && !placed; attempt += 1) {
+        const direction = Math.random() > 0.5 ? 'horizontal' : 'vertical';
+        const x = Math.floor(Math.random() * BOARD_SIZE);
+        const y = Math.floor(Math.random() * BOARD_SIZE);
+        const cells = cellsForShip(x, y, ship.length, direction);
+        if (cells.every((cell) => cell.x >= 0 && cell.y >= 0 && cell.x < BOARD_SIZE && cell.y < BOARD_SIZE)
+          && cells.every((cell) => !shipAt(ships, cell.x, cell.y))) {
+          ships.push({ id: ship.id, cells });
+          placed = true;
+        }
+      }
+    }
+    if (ships.length !== FLEET.length) {
+      showToast('Auto-placering misslyckades.');
+      return;
+    }
+    placedShips = ships;
+    hoverCell = null;
+    render();
+  }
+
+  async function submitPlacement() {
+    if (!state || placedShips.length !== FLEET.length) {
+      return;
+    }
+    try {
+      const data = await api('/api/place', {
+        code: state.code,
+        playerId: state.playerId,
+        ships: placedShips
+      });
+      state = data.state;
+      render();
+    } catch (error) {
+      showToast(error.message);
+    }
+  }
+
+  function selectAbility(ability) {
+    selectedAbility = ability;
+    render();
+  }
+
+  async function targetCell(cellElement) {
+    if (!state || state.status !== 'playing' || !state.turn || !state.turn.isYou) {
+      return;
+    }
+    const cell = readCell(cellElement);
+    if (selectedAbility === 'shot' && shotAt(state.target.outgoingShots, cell.x, cell.y)) {
+      showToast('Den rutan är redan beskjuten.');
+      return;
+    }
+    try {
+      const data = await api('/api/action', {
+        code: state.code,
+        playerId: state.playerId,
+        ability: selectedAbility,
+        x: cell.x,
+        y: cell.y
+      });
+      state = data.state;
+      if (state.status === 'finished') {
+        await loadScores();
+      }
+      if (selectedAbility !== 'shot') {
+        selectedAbility = 'shot';
+      }
+      render();
+    } catch (error) {
+      showToast(error.message);
+    }
+  }
+
+  function readCell(element) {
+    return {
+      x: Number(element.dataset.x),
+      y: Number(element.dataset.y)
+    };
+  }
+
+  async function boot() {
+    await loadScores();
+    await loadSession();
+  }
+
+  boot();
+})();
