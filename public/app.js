@@ -28,6 +28,7 @@
     destroyer: assetUrl('gfx/ship_2_squares_v1.png')
   };
   const TITLE_IMAGE = assetUrl('gfx/battleship_logo_swe.png');
+  const OWL_LOGO = assetUrl('gfx/42-improbable-owls-logo.svg');
   const MUSIC_ASSETS = {
     title: assetUrl('sounds/battleship_title.mp3'),
     battle: assetUrl('sounds/battleship_battle.mp3')
@@ -615,7 +616,12 @@
       <main class="screen">
         ${renderScreen()}
       </main>
-      <footer class="app-footer">${escapeHtml(COPYRIGHT_NOTICE)}</footer>
+      <footer class="app-footer">
+        <a class="studio-credit" href="https://42improbableowls.com" target="_blank" rel="noopener">
+          <img src="${OWL_LOGO}" alt="42 Improbable Owls logo">
+          <span>${escapeHtml(COPYRIGHT_NOTICE)}</span>
+        </a>
+      </footer>
     `;
     bindEvents();
     playOutcomeSoundOnce();

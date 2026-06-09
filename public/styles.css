@@ -210,11 +210,37 @@ input {
 }
 
 .app-footer {
+  display: flex;
+  justify-content: center;
   margin-top: 16px;
   color: rgba(23, 32, 42, 0.68);
   font-size: 0.78rem;
   font-weight: 800;
   text-align: center;
+}
+
+.studio-credit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: inherit;
+  text-decoration: none;
+  opacity: 0.78;
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.studio-credit:hover {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.studio-credit img {
+  width: 28px;
+  height: 30px;
+  display: block;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 3px 5px rgba(23, 32, 42, 0.16));
 }
 
 .home-grid {
@@ -1230,5 +1256,11 @@ button.cell:not(:disabled):hover {
     right: 8px;
     bottom: 8px;
     max-width: calc(100vw - 16px);
+  }
+
+  .studio-credit {
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: 0.72rem;
   }
 }

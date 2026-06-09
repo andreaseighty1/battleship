@@ -1,0 +1,22 @@
+<svg width="280" height="290" viewBox="0 0 280 290" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">42 Improbable Owls</title>
+  <desc id="desc">Stylized owl studio logo.</desc>
+  <circle cx="140" cy="8" r="4.5" fill="#16697a"/>
+  <polyline points="76,46 108,20 140,46 172,20 204,46" stroke="#16697a" stroke-width="5.5" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+  <polygon points="46,115 76,66 120,107" fill="#17202a"/>
+  <polygon points="234,115 204,66 160,107" fill="#17202a"/>
+  <polygon points="40,128 2,192 38,176" fill="#17202a"/>
+  <polygon points="240,128 278,192 242,176" fill="#17202a"/>
+  <ellipse cx="140" cy="192" rx="104" ry="114" fill="#17202a"/>
+  <ellipse cx="140" cy="197" rx="88" ry="97" fill="#f7faf8"/>
+  <circle cx="108" cy="168" r="23" fill="#17202a"/>
+  <circle cx="108" cy="168" r="14" fill="#f7faf8"/>
+  <circle cx="112" cy="164" r="5" fill="#17202a"/>
+  <circle cx="172" cy="168" r="23" fill="#17202a"/>
+  <circle cx="172" cy="168" r="14" fill="#f7faf8"/>
+  <circle cx="176" cy="164" r="5" fill="#17202a"/>
+  <circle cx="172" cy="168" r="29.5" fill="none" stroke="#16697a" stroke-width="2.8"/>
+  <path d="M198,183 Q206,196 209,210" stroke="#16697a" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <circle cx="210" cy="212" r="2.8" fill="#16697a"/>
+  <polygon points="132,182 140,194 148,182" fill="#f4d35e"/>
+</svg>
