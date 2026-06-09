@@ -51,6 +51,19 @@ Node.js behövs bara för lokal utveckling och test av den lokala servern. I Sup
 
 Supabase används som backend: Postgres lagrar matcher och topplista, en Edge Function kör spelreglerna, och Realtime lyssnar på en separat tick-tabell som inte innehåller gömda skepp.
 
+## Automatisk Supabase-deploy
+
+GitHub Actions-workflowen `.github/workflows/deploy-supabase.yml` deployar migrationer och Edge Function till projektet `rsfrhxpduqhtfgenxdoh` när `supabase/` ändras på `main`.
+
+Lägg in dessa i GitHub-repots **Settings > Secrets and variables > Actions > Repository secrets**:
+
+- `SUPABASE_ACCESS_TOKEN`: Supabase personal access token från Supabase Dashboard.
+- `SUPABASE_DB_PASSWORD`: databaslösenordet du valde när projektet skapades.
+
+Det här är GitHub Actions-secrets, inte Supabase Function-secrets. Det är därför okej att de börjar med `SUPABASE_` här.
+
+Efter att secretsen finns på plats kan du starta deployen manuellt via **Actions > Deploy Supabase > Run workflow**. Nästa ändring i `supabase/` på `main` kör den också automatiskt.
+
 1. Skapa ett Supabase-projekt.
 2. Kör SQL-filen `supabase/migrations/20260609081500_battleship_arcade.sql` i Supabase SQL Editor eller via Supabase CLI.
    Filen är säker att köra igen när schemat uppdateras, till exempel för att lägga till nya topplistekolumner.
