@@ -83,10 +83,10 @@ supabase functions deploy battleship
 window.BATTLESHIP_CONFIG = {
   backend: 'supabase',
   supabaseUrl: 'https://DIN-PROJEKTREF.supabase.co',
-  supabaseKey: 'DIN_LEGACY_ANON_KEY',
+  supabaseKey: 'DIN_PUBLISHABLE_KEY',
   supabaseFunctionName: 'battleship',
   supabaseSdkUrl: 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
 };
 ```
 
-Legacy `anon`-nyckeln och `sb_publishable_...`-nycklar är publika och får ligga i frontend. Secret key och `service_role` ska aldrig in i GitHub eller frontend. Frontendens `public`-mapp kan hostas statiskt, till exempel på Netlify, Vercel, GitHub Pages eller Supabase Storage.
+Använd i första hand `sb_publishable_...` från Supabase API Keys. Legacy `anon`-nyckeln och `sb_publishable_...`-nycklar är publika och får ligga i frontend. Secret key och `service_role` ska aldrig in i GitHub eller frontend. Frontendens `public`-mapp kan hostas statiskt, till exempel på Netlify, Vercel, GitHub Pages eller Supabase Storage.
