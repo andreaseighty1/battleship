@@ -5,13 +5,13 @@ Music:
 - `battleship_battle.mp3` - battle music loop while a match is playing.
 
 Effects:
-- `fire.mp3` - cannon or torpedo launch.
+- `fire_1.mp3`, `fire_2.mp3`, `fire_3.mp3` - cannon or torpedo launches. The frontend picks one randomly.
 - `hit.mp3` - a normal hit.
 - `miss.mp3` - a miss in the water.
-- `sink.mp3` - a ship is sunk.
+- `hit.mp3` is also reused when a ship is sunk until a dedicated sink sound exists.
 - `sonar.mp3` - sonar ping.
-- `barrage.mp3` - arcade barrage attack.
-- `victory.mp3` - winner sting.
-- `defeat.mp3` - loser sting.
+- `fire_1.mp3` and `fire_3.mp3` are reused for arcade barrage until a dedicated barrage sound exists.
+- `winner_fanfare.mp3` - winner sting.
+- `loser_fanfare.mp3` - loser sting.
 
 Missing files are ignored silently, so these can be added one by one.

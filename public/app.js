@@ -33,17 +33,25 @@
     battle: assetUrl('sounds/battleship_battle.mp3')
   };
   const SOUND_ASSETS = {
-    fire: assetUrl('sounds/fire.mp3'),
+    fire: [
+      assetUrl('sounds/fire_1.mp3'),
+      assetUrl('sounds/fire_2.mp3'),
+      assetUrl('sounds/fire_3.mp3')
+    ],
     hit: assetUrl('sounds/hit.mp3'),
     miss: assetUrl('sounds/miss.mp3'),
-    sink: assetUrl('sounds/sink.mp3'),
+    sink: assetUrl('sounds/hit.mp3'),
     sonar: assetUrl('sounds/sonar.mp3'),
-    barrage: assetUrl('sounds/barrage.mp3'),
-    victory: assetUrl('sounds/victory.mp3'),
-    defeat: assetUrl('sounds/defeat.mp3')
+    barrage: [
+      assetUrl('sounds/fire_1.mp3'),
+      assetUrl('sounds/fire_3.mp3')
+    ],
+    victory: assetUrl('sounds/winner_fanfare.mp3'),
+    defeat: assetUrl('sounds/loser_fanfare.mp3')
   };
   const AUDIO_SETTING_KEY = 'battleship-audio';
   const PLAYER_NAME_KEY = 'battleship-player-name';
+  const COPYRIGHT_NOTICE = '© 2026 Andreas Jonsson & 42 Improbable Owls';
 
   const app = document.querySelector('#app');
   const toast = document.querySelector('#toast');
@@ -228,7 +236,7 @@
     if (!audioEnabled || !audioUnlocked) {
       return false;
     }
-    const src = SOUND_ASSETS[name];
+    const src = chooseSoundSource(SOUND_ASSETS[name]);
     const key = `sound:${name}`;
     if (!src || unavailableAudio.has(key)) {
       return false;
@@ -239,6 +247,13 @@
     player.addEventListener('error', () => unavailableAudio.add(key), { once: true });
     player.play().catch(() => undefined);
     return true;
+  }
+
+  function chooseSoundSource(source) {
+    if (!Array.isArray(source)) {
+      return source;
+    }
+    return source[Math.floor(Math.random() * source.length)] || null;
   }
 
   function playShotResultSound(shots, fallbackHit) {
@@ -600,6 +615,7 @@
       <main class="screen">
         ${renderScreen()}
       </main>
+      <footer class="app-footer">${escapeHtml(COPYRIGHT_NOTICE)}</footer>
     `;
     bindEvents();
     playOutcomeSoundOnce();

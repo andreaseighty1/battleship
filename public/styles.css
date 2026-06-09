@@ -209,6 +209,14 @@ input {
   gap: 16px;
 }
 
+.app-footer {
+  margin-top: 16px;
+  color: rgba(23, 32, 42, 0.68);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
+}
+
 .home-grid {
   display: grid;
   grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
