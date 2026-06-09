@@ -14,6 +14,13 @@
     { id: 'arcade', label: 'Arcade', tag: 'Energi' },
     { id: 'classic', label: 'Classic', tag: 'Rent spel' }
   ];
+  const SHIP_ASSETS = {
+    carrier: 'assets/gfx/ship_5_squares.png',
+    battleship: 'assets/gfx/ship_4_squares.png',
+    cruiser: 'assets/gfx/ship_3_squares_v1.png',
+    submarine: 'assets/gfx/ship_3_squares_v2.png',
+    destroyer: 'assets/gfx/ship_2_squares_v1.png'
+  };
 
   const app = document.querySelector('#app');
   const toast = document.querySelector('#toast');
@@ -636,6 +643,7 @@
     const cells = [];
     const columns = [];
     const rows = [];
+    const overlays = renderShipOverlays(type);
     for (let y = 0; y < BOARD_SIZE; y += 1) {
       rows.push(`<span class="axis-label">${y + 1}</span>`);
       for (let x = 0; x < BOARD_SIZE; x += 1) {
@@ -650,13 +658,52 @@
         <div class="axis-corner" aria-hidden="true"></div>
         <div class="axis-labels axis-cols" aria-hidden="true">${columns.join('')}</div>
         <div class="axis-labels axis-rows" aria-hidden="true">${rows.join('')}</div>
-        <div class="board" data-board="${type}">${cells.join('')}</div>
+        <div class="board ${overlays ? 'has-ship-overlays' : ''}" data-board="${type}">${overlays}${cells.join('')}</div>
       </div>
     `;
   }
 
+  function renderShipOverlays(type) {
+    if (type === 'target') {
+      return '';
+    }
+    const ships = type === 'placement' ? placedShips : state.own.ships;
+    return (ships || []).map(renderShipOverlay).join('');
+  }
+
+  function renderShipOverlay(ship) {
+    const cells = Array.isArray(ship.cells)
+      ? ship.cells.map((cell) => ({ x: Number(cell.x), y: Number(cell.y) }))
+      : [];
+    if (!cells.length) {
+      return '';
+    }
+
+    const fleetShip = FLEET.find((entry) => entry.id === ship.id) || {};
+    const length = Number(ship.length || fleetShip.length || cells.length);
+    const sameColumn = cells.every((cell) => cell.x === cells[0].x);
+    const direction = sameColumn ? 'vertical' : 'horizontal';
+    const sorted = [...cells].sort((a, b) => (direction === 'horizontal' ? a.x - b.x : a.y - b.y));
+    const start = sorted[0];
+    const columnSpan = direction === 'horizontal' ? length : 1;
+    const rowSpan = direction === 'vertical' ? length : 1;
+    const asset = SHIP_ASSETS[ship.id] || SHIP_ASSETS.destroyer;
+    const style = [
+      `grid-column: ${start.x + 1} / span ${columnSpan}`,
+      `grid-row: ${start.y + 1} / span ${rowSpan}`,
+      `--ship-length: ${length}`,
+      `--ship-image: url("${asset}")`
+    ].join('; ');
+
+    return `
+      <span class="ship-overlay ship-dir-${direction}" style="${style}" aria-hidden="true">
+        <span class="ship-sprite"></span>
+      </span>
+    `;
+  }
+
   function renderCell(type, x, y) {
-    const classes = ['cell'];
+    const classes = ['cell', `is-${type}-cell`];
     let content = '';
     let disabled = true;
     const attrs = `data-x="${x}" data-y="${y}"`;
