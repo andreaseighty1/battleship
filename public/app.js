@@ -86,11 +86,11 @@
 
   function getSupabaseSettings() {
     const supabaseUrl = String(runtimeConfig.supabaseUrl || '').replace(/\/+$/, '');
-    const supabaseAnonKey = String(runtimeConfig.supabaseAnonKey || '');
-    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error('Supabase saknar URL eller anon key i public/config.js.');
+    const supabaseKey = String(runtimeConfig.supabaseKey || runtimeConfig.supabaseAnonKey || runtimeConfig.supabasePublishableKey || '');
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase saknar URL eller public key i public/config.js.');
     }
-    return { supabaseUrl, supabaseAnonKey };
+    return { supabaseUrl, supabaseKey };
   }
 
   function supabasePath(path) {
@@ -98,12 +98,14 @@
   }
 
   async function supabaseFunctionFetch(path, options = {}) {
-    const { supabaseUrl, supabaseAnonKey } = getSupabaseSettings();
+    const { supabaseUrl, supabaseKey } = getSupabaseSettings();
     const method = options.method || 'GET';
     const headers = {
-      apikey: supabaseAnonKey,
-      authorization: `Bearer ${supabaseAnonKey}`
+      apikey: supabaseKey
     };
+    if (supabaseKey.startsWith('eyJ')) {
+      headers.authorization = `Bearer ${supabaseKey}`;
+    }
     const request = { method, headers };
 
     if (options.payload !== undefined) {
@@ -142,9 +144,9 @@
 
   async function getSupabaseClient() {
     if (!supabaseClient) {
-      const { supabaseUrl, supabaseAnonKey } = getSupabaseSettings();
+      const { supabaseUrl, supabaseKey } = getSupabaseSettings();
       const sdk = await loadSupabaseSdk();
-      supabaseClient = sdk.createClient(supabaseUrl, supabaseAnonKey);
+      supabaseClient = sdk.createClient(supabaseUrl, supabaseKey);
     }
     return supabaseClient;
   }

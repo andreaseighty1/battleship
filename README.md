@@ -48,29 +48,26 @@ Supabase används som backend: Postgres lagrar matcher och topplista, en Edge Fu
 
 1. Skapa ett Supabase-projekt.
 2. Kör SQL-filen `supabase/migrations/20260609081500_battleship_arcade.sql` i Supabase SQL Editor eller via Supabase CLI.
-3. Sätt Edge Function secrets om de inte redan finns i projektet:
-
-```powershell
-supabase secrets set SUPABASE_URL=https://DIN-PROJEKTREF.supabase.co
-supabase secrets set SUPABASE_SERVICE_ROLE_KEY=DIN_SERVICE_ROLE_KEY
-```
-
-4. Deploya funktionen:
+3. Deploya funktionen:
 
 ```powershell
 supabase functions deploy battleship
 ```
 
-5. Ändra `public/config.js`:
+4. Edge Functions har Supabase-defaults som `SUPABASE_URL` och `SUPABASE_SECRET_KEYS` automatiskt. Skapa inte egna secrets som börjar med `SUPABASE_`; Supabase reserverar de namnen.
+
+5. Funktionen fungerar med legacy `anon` key. Om du använder ny `sb_publishable_...` key i stället behöver funktionen köras utan JWT-krav. I CLI styrs det av `supabase/config.toml`. I dashboarden heter det ofta **Enforce JWT Verification** och ska vara avstängt för `battleship`.
+
+6. Ändra `public/config.js`:
 
 ```js
 window.BATTLESHIP_CONFIG = {
   backend: 'supabase',
   supabaseUrl: 'https://DIN-PROJEKTREF.supabase.co',
-  supabaseAnonKey: 'DIN_ANON_KEY',
+  supabaseKey: 'DIN_LEGACY_ANON_KEY',
   supabaseFunctionName: 'battleship',
   supabaseSdkUrl: 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
 };
 ```
 
-`anon`-nyckeln är publik och får ligga i frontend. `service_role`-nyckeln ska bara ligga som Supabase secret. Frontendens `public`-mapp kan hostas statiskt, till exempel på Netlify, Vercel, GitHub Pages eller Supabase Storage.
+Legacy `anon`-nyckeln och `sb_publishable_...`-nycklar är publika och får ligga i frontend. Secret key och `service_role` ska aldrig in i GitHub eller frontend. Frontendens `public`-mapp kan hostas statiskt, till exempel på Netlify, Vercel, GitHub Pages eller Supabase Storage.

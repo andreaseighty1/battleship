@@ -1,0 +1,2 @@
+[functions.battleship]
+verify_jwt = false

@@ -45,12 +45,44 @@ const corsHeaders = {
 };
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
-const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || readDefaultSecretKey(Deno.env.get('SUPABASE_SECRET_KEYS'));
+const publicApiKeys = new Set([
+  Deno.env.get('SUPABASE_ANON_KEY') || '',
+  ...readDefaultPublicKeys(Deno.env.get('SUPABASE_PUBLISHABLE_KEYS'))
+].filter(Boolean));
 const admin = supabaseUrl && serviceRoleKey
   ? createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false }
     })
   : null;
+
+function readDefaultSecretKey(value: string | undefined): string {
+  if (!value) return '';
+  try {
+    const keys = JSON.parse(value);
+    if (typeof keys.default === 'string') return keys.default;
+    const firstValue = Object.values(keys).find((entry) => typeof entry === 'string');
+    return typeof firstValue === 'string' ? firstValue : '';
+  } catch {
+    return value;
+  }
+}
+
+function readDefaultPublicKeys(value: string | undefined): string[] {
+  if (!value) return [];
+  try {
+    const keys = JSON.parse(value);
+    return Object.values(keys).filter((entry): entry is string => typeof entry === 'string');
+  } catch {
+    return [value];
+  }
+}
+
+function hasAllowedApiKey(req: Request): boolean {
+  if (publicApiKeys.size === 0) return true;
+  const key = req.headers.get('apikey') || '';
+  return publicApiKeys.has(key);
+}
 
 class GameError extends Error {
   statusCode: number;
@@ -627,6 +659,7 @@ function serializeGame(game: any, playerId: unknown): any {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (!admin) return json(500, { error: 'Supabase service role environment is missing.' });
+  if (!hasAllowedApiKey(req)) return json(401, { error: 'Invalid API key.' });
 
   try {
     const url = new URL(req.url);
