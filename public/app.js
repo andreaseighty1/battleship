@@ -1,6 +1,12 @@
 (function () {
   'use strict';
 
+  function assetUrl(path) {
+    const script = document.currentScript || document.querySelector('script[src$="app.js"], script[src*="/app.js"]');
+    const baseUrl = script && script.src ? script.src : window.location.href;
+    return new URL(`assets/${String(path).replace(/^\/+/, '')}`, baseUrl).toString();
+  }
+
   const BOARD_SIZE = 10;
   const MAX_ENERGY = 9;
   const FLEET = [
@@ -15,28 +21,29 @@
     { id: 'classic', label: 'Classic', tag: 'Rent spel' }
   ];
   const SHIP_ASSETS = {
-    carrier: 'assets/gfx/ship_5_squares.png',
-    battleship: 'assets/gfx/ship_4_squares.png',
-    cruiser: 'assets/gfx/ship_3_squares_v1.png',
-    submarine: 'assets/gfx/ship_3_squares_v2.png',
-    destroyer: 'assets/gfx/ship_2_squares_v1.png'
+    carrier: assetUrl('gfx/ship_5_squares.png'),
+    battleship: assetUrl('gfx/ship_4_squares.png'),
+    cruiser: assetUrl('gfx/ship_3_squares_v1.png'),
+    submarine: assetUrl('gfx/ship_3_squares_v2.png'),
+    destroyer: assetUrl('gfx/ship_2_squares_v1.png')
   };
-  const TITLE_IMAGE = 'assets/gfx/battleship_logo_swe.png';
+  const TITLE_IMAGE = assetUrl('gfx/battleship_logo_swe.png');
   const MUSIC_ASSETS = {
-    title: 'assets/sounds/battleship_title.mp3',
-    battle: 'assets/sounds/battleship_battle.mp3'
+    title: assetUrl('sounds/battleship_title.mp3'),
+    battle: assetUrl('sounds/battleship_battle.mp3')
   };
   const SOUND_ASSETS = {
-    fire: 'assets/sounds/fire.mp3',
-    hit: 'assets/sounds/hit.mp3',
-    miss: 'assets/sounds/miss.mp3',
-    sink: 'assets/sounds/sink.mp3',
-    sonar: 'assets/sounds/sonar.mp3',
-    barrage: 'assets/sounds/barrage.mp3',
-    victory: 'assets/sounds/victory.mp3',
-    defeat: 'assets/sounds/defeat.mp3'
+    fire: assetUrl('sounds/fire.mp3'),
+    hit: assetUrl('sounds/hit.mp3'),
+    miss: assetUrl('sounds/miss.mp3'),
+    sink: assetUrl('sounds/sink.mp3'),
+    sonar: assetUrl('sounds/sonar.mp3'),
+    barrage: assetUrl('sounds/barrage.mp3'),
+    victory: assetUrl('sounds/victory.mp3'),
+    defeat: assetUrl('sounds/defeat.mp3')
   };
   const AUDIO_SETTING_KEY = 'battleship-audio';
+  const PLAYER_NAME_KEY = 'battleship-player-name';
 
   const app = document.querySelector('#app');
   const toast = document.querySelector('#toast');
@@ -57,6 +64,7 @@
   let hoverCell = null;
   let selectedAbility = 'shot';
   let selectedMode = 'arcade';
+  let playerNameDraft = readPlayerName();
   let toastTimer = null;
   let scores = [];
   let audioEnabled = readAudioPreference();
@@ -115,6 +123,22 @@
       localStorage.setItem(AUDIO_SETTING_KEY, value ? 'on' : 'off');
     } catch {
       // Ignore localStorage failures; audio can still work for the current page.
+    }
+  }
+
+  function readPlayerName() {
+    try {
+      return localStorage.getItem(PLAYER_NAME_KEY) || '';
+    } catch {
+      return '';
+    }
+  }
+
+  function writePlayerName(value) {
+    try {
+      localStorage.setItem(PLAYER_NAME_KEY, value);
+    } catch {
+      // Names are still submitted even if the browser blocks storage.
     }
   }
 
@@ -197,12 +221,7 @@
     if (!player.paused) {
       return;
     }
-    player.play().catch(() => {
-      unavailableAudio.add(`music:${key}`);
-      if (activeMusicKey === key) {
-        activeMusicKey = null;
-      }
-    });
+    player.play().catch(() => undefined);
   }
 
   function playSound(name, volume = 0.55) {
@@ -218,7 +237,7 @@
     player.preload = 'auto';
     player.volume = volume;
     player.addEventListener('error', () => unavailableAudio.add(key), { once: true });
-    player.play().catch(() => unavailableAudio.add(key));
+    player.play().catch(() => undefined);
     return true;
   }
 
@@ -552,6 +571,7 @@
     if (state.status === 'placing') return 'Placering';
     if (state.status === 'playing') return state.turn && state.turn.isYou ? 'Din tur' : 'Motståndarens tur';
     if (state.status === 'finished') return 'Avgjord';
+    if (state.status === 'abandoned') return 'Avslutad';
     return state.status;
   }
 
@@ -605,14 +625,14 @@
         <div class="panel home-actions">
           <form class="form-grid" data-form="create">
             <h2>Skapa rum</h2>
-            <input name="name" maxlength="24" placeholder="Ditt namn" autocomplete="nickname">
+            <input name="name" maxlength="24" placeholder="Ditt namn" autocomplete="nickname" required value="${escapeHtml(playerNameDraft)}">
             ${renderModeSelector()}
             <button class="btn primary" type="submit">Skapa kod</button>
           </form>
           <form class="form-grid" data-form="join">
             <h2>Gå med</h2>
             <div class="join-grid">
-              <input name="name" maxlength="24" placeholder="Ditt namn" autocomplete="nickname">
+              <input name="name" maxlength="24" placeholder="Ditt namn" autocomplete="nickname" required value="${escapeHtml(playerNameDraft)}">
               <input name="code" maxlength="7" placeholder="Kod" autocomplete="off">
             </div>
             <button class="btn accent" type="submit">Anslut</button>
@@ -635,7 +655,7 @@
     return `
       <div class="mode-select" role="radiogroup" aria-label="Spelläge">
         ${GAME_MODES.map((mode) => `
-          <label class="mode-option ${selectedMode === mode.id ? 'is-active' : ''}">
+          <label class="mode-option ${selectedMode === mode.id ? 'is-active' : ''}" data-mode-option data-mode="${escapeHtml(mode.id)}">
             <input type="radio" name="mode" value="${escapeHtml(mode.id)}" ${selectedMode === mode.id ? 'checked' : ''}>
             <strong>${escapeHtml(mode.label)}</strong>
             <span>${escapeHtml(mode.tag)}</span>
@@ -663,22 +683,29 @@
   function renderPlacement() {
     const canReady = placedShips.length === FLEET.length;
     const locked = state.own.ready;
+    const selectedShip = FLEET.find((ship) => ship.id === selectedShipId);
+    const selectedText = selectedShip && !placedShips.some((entry) => entry.id === selectedShip.id)
+      ? `${selectedShip.name}, ${selectedShip.length} rutor`
+      : 'Välj ett skepp';
     return `
-      <section class="status-grid">
-        <div class="panel">
-          <h2>Flotta</h2>
-          <div class="fleet-list">${FLEET.map(renderShipButton).join('')}</div>
-          <div class="toolbar" style="margin-top: 12px;">
-            <div class="segmented" role="group" aria-label="Riktning">
-              <button data-action="orientation" data-orientation="horizontal" class="${orientation === 'horizontal' ? 'is-active' : ''}" type="button" ${locked ? 'disabled' : ''}>Vågrät</button>
-              <button data-action="orientation" data-orientation="vertical" class="${orientation === 'vertical' ? 'is-active' : ''}" type="button" ${locked ? 'disabled' : ''}>Lodrät</button>
+      <section class="status-grid placement-grid">
+        <div class="panel placement-controls-panel">
+          <div class="placement-header">
+            <div>
+              <h2>Flotta</h2>
+              <span>${locked ? 'Inväntar motståndaren' : escapeHtml(selectedText)}</span>
             </div>
+            <span class="chip">${locked ? 'Låst' : `${placedShips.length}/${FLEET.length}`}</span>
+          </div>
+          <div class="fleet-list fleet-dock">${FLEET.map(renderShipButton).join('')}</div>
+          <div class="toolbar placement-toolbar">
+            <button class="btn" data-action="rotate" type="button" ${locked ? 'disabled' : ''}>Rotera ${orientation === 'horizontal' ? '->' : '^'}</button>
             <button class="btn" data-action="auto-place" type="button" ${locked ? 'disabled' : ''}>Auto</button>
             <button class="btn" data-action="clear-place" type="button" ${locked ? 'disabled' : ''}>Rensa</button>
             <button class="btn primary" data-action="ready" type="button" ${canReady && !locked ? '' : 'disabled'}>Redo</button>
           </div>
         </div>
-        <div class="panel board-wrap">
+        <div class="panel board-wrap placement-board-panel">
           <div class="board-title">
             <h2>Din spelplan</h2>
             <span class="chip">${locked ? 'Låst' : `${placedShips.length}/${FLEET.length}`}</span>
@@ -723,6 +750,19 @@
   }
 
   function renderOutcome() {
+    if (state.status === 'abandoned') {
+      const leftText = state.abandonedBy
+        ? `${state.abandonedBy.playerName} lämnade matchen.`
+        : 'Matchen avbröts.';
+      return `
+        <div class="energy">
+          <h2>Matchen avslutades</h2>
+          <div class="score-summary">${escapeHtml(leftText)} Ingen highscore sparades.</div>
+          <button class="btn primary" data-action="new-game" type="button">Nytt spel</button>
+        </div>
+      `;
+    }
+
     if (state.status !== 'finished') {
       return '';
     }
@@ -979,6 +1019,17 @@
     }));
   }
 
+  function placementCandidate(cell, ship) {
+    const directions = orientation === 'horizontal' ? ['horizontal', 'vertical'] : ['vertical', 'horizontal'];
+    for (const direction of directions) {
+      const cells = cellsForShip(cell.x, cell.y, ship.length, direction);
+      if (isPlacementValid(cells, ship.id)) {
+        return { cells, direction };
+      }
+    }
+    return null;
+  }
+
   function isPlacementValid(cells, shipId) {
     if (cells.some((cell) => cell.x < 0 || cell.y < 0 || cell.x >= BOARD_SIZE || cell.y >= BOARD_SIZE)) {
       return false;
@@ -1003,38 +1054,42 @@
         render();
       });
     });
+    document.querySelectorAll('[data-mode-option]').forEach((option) => {
+      option.addEventListener('click', () => {
+        const nextMode = normalizeModeId(option.dataset.mode);
+        if (nextMode !== selectedMode) {
+          selectedMode = nextMode;
+          render();
+        }
+      });
+    });
+    document.querySelectorAll('input[name="name"]').forEach((input) => {
+      input.addEventListener('input', () => {
+        playerNameDraft = input.value;
+      });
+    });
     document.querySelectorAll('[data-action]').forEach((element) => {
       element.addEventListener('click', handleAction);
     });
     document.querySelectorAll('[data-cell]').forEach((cell) => {
       cell.addEventListener('click', handleAction);
     });
-    document.querySelectorAll('[data-cell="placement"]').forEach((cell) => {
-      cell.addEventListener('mouseenter', () => {
-        hoverCell = readCell(cell);
-        render();
-      });
-      cell.addEventListener('focus', () => {
-        hoverCell = readCell(cell);
-        render();
-      });
-    });
-    const placementBoard = document.querySelector('[data-board="placement"]');
-    if (placementBoard) {
-      placementBoard.addEventListener('mouseleave', () => {
-        hoverCell = null;
-        render();
-      });
-    }
   }
 
   async function handleCreate(event) {
     event.preventDefault();
     unlockAudio();
     const form = new FormData(event.currentTarget);
+    const name = String(form.get('name') || '').trim();
+    if (!name) {
+      showToast('Skriv ett namn först.');
+      return;
+    }
+    playerNameDraft = name;
+    writePlayerName(name);
     selectedMode = normalizeModeId(form.get('mode') || selectedMode);
     try {
-      const data = await api('/api/create', { name: form.get('name'), mode: selectedMode });
+      const data = await api('/api/create', { name, mode: selectedMode });
       storage.set({ backend: backendMode, code: data.code, playerId: data.playerId });
       state = data.state;
       resetLocalPlacement();
@@ -1048,8 +1103,15 @@
     event.preventDefault();
     unlockAudio();
     const form = new FormData(event.currentTarget);
+    const name = String(form.get('name') || '').trim();
+    if (!name) {
+      showToast('Skriv ett namn först.');
+      return;
+    }
+    playerNameDraft = name;
+    writePlayerName(name);
     try {
-      const data = await api('/api/join', { name: form.get('name'), code: form.get('code') });
+      const data = await api('/api/join', { name, code: form.get('code') });
       storage.set({ backend: backendMode, code: data.code, playerId: data.playerId });
       state = data.state;
       resetLocalPlacement();
@@ -1067,6 +1129,7 @@
     if (action === 'new-game') return leaveGame();
     if (action === 'select-ship') return selectShip(event.currentTarget.dataset.ship);
     if (action === 'orientation') return setOrientation(event.currentTarget.dataset.orientation);
+    if (action === 'rotate') return rotateOrientation();
     if (action === 'auto-place') return autoPlace();
     if (action === 'clear-place') return clearPlacement();
     if (action === 'ready') return submitPlacement();
@@ -1076,7 +1139,18 @@
     return undefined;
   }
 
-  function leaveGame() {
+  async function leaveGame() {
+    const currentState = state;
+    if (currentState && currentState.code && currentState.playerId && currentState.status !== 'finished' && currentState.status !== 'abandoned') {
+      try {
+        await api('/api/leave', {
+          code: currentState.code,
+          playerId: currentState.playerId
+        });
+      } catch {
+        // Leaving should always take the local player home, even if the network call fails.
+      }
+    }
     disconnectLiveUpdates();
     storage.clear();
     state = null;
@@ -1089,7 +1163,27 @@
     if (state && state.own.ready) {
       return;
     }
+    const placedShip = placedShips.find((entry) => entry.id === shipId);
+    if (placedShip) {
+      placedShips = placedShips.filter((entry) => entry.id !== shipId);
+      selectedShipId = shipId;
+      hoverCell = null;
+      render();
+      return;
+    }
+    if (selectedShipId === shipId) {
+      rotateOrientation();
+      return;
+    }
     selectedShipId = shipId;
+    render();
+  }
+
+  function rotateOrientation() {
+    if (state && state.own.ready) {
+      return;
+    }
+    orientation = orientation === 'horizontal' ? 'vertical' : 'horizontal';
     render();
   }
 
@@ -1118,12 +1212,13 @@
       return;
     }
     const cell = readCell(cellElement);
-    const cells = cellsForShip(cell.x, cell.y, ship.length, orientation);
-    if (!isPlacementValid(cells, ship.id)) {
+    const candidate = placementCandidate(cell, ship);
+    if (!candidate) {
       showToast('Skeppet får inte ligga där.');
       return;
     }
-    placedShips.push({ id: ship.id, cells });
+    orientation = candidate.direction;
+    placedShips.push({ id: ship.id, cells: candidate.cells });
     const next = FLEET.find((entry) => !placedShips.some((shipEntry) => shipEntry.id === entry.id));
     selectedShipId = next ? next.id : selectedShipId;
     hoverCell = null;

@@ -109,6 +109,9 @@ function containsProfanity(value) {
 
 function cleanName(value, fallback = 'Kapten') {
   const name = String(value || '').trim().replace(/\s+/g, ' ');
+  if (!name) {
+    fail(400, 'Skriv ett namn.');
+  }
   const chosenName = (name || fallback).slice(0, 24);
   if (containsProfanity(chosenName)) {
     fail(400, 'Välj ett annat namn.');
@@ -262,6 +265,8 @@ function createGame(hostName, store = games, mode = DEFAULT_MODE) {
     },
     turnPlayerId: null,
     winnerId: null,
+    abandonedByPlayerId: null,
+    abandonedAt: null,
     score: null,
     log: []
   };
@@ -309,6 +314,23 @@ function joinGame(codeInput, playerName, store = games) {
   logEvent(game, 'system', `${player.name} gick med. Placera skeppen!`);
 
   return { game, code: game.code, playerId: player.id };
+}
+
+function abandonGame(codeInput, playerId, store = games) {
+  const game = getGame(codeInput, store);
+  const player = getPlayer(game, playerId);
+  if (game.status === 'finished' || game.status === 'abandoned') {
+    return { game };
+  }
+
+  game.status = 'abandoned';
+  game.turnPlayerId = null;
+  game.abandonedByPlayerId = player.id;
+  game.abandonedAt = Date.now();
+  game.finishedAt = game.abandonedAt;
+  touch(game);
+  logEvent(game, 'system', `${player.name} lämnade matchen.`);
+  return { game };
 }
 
 function assertBoardCell(x, y) {
@@ -634,6 +656,7 @@ function serializeGame(game, playerId) {
   const opponent = getOpponent(game, playerId);
   const turnPlayer = game.players.find((entry) => entry.id === game.turnPlayerId) || null;
   const winner = game.players.find((entry) => entry.id === game.winnerId) || null;
+  const abandonedBy = game.players.find((entry) => entry.id === game.abandonedByPlayerId) || null;
   const ownStats = shotStatsFor(game, player.id);
   const incomingStats = opponent ? shotStatsFor(game, opponent.id) : { shots: 0, hits: 0, misses: 0, accuracy: 0 };
 
@@ -661,6 +684,12 @@ function serializeGame(game, playerId) {
       ? {
           playerName: winner.name,
           isYou: winner.id === player.id
+        }
+      : null,
+    abandonedBy: abandonedBy
+      ? {
+          playerName: abandonedBy.name,
+          isYou: abandonedBy.id === player.id
         }
       : null,
     score: game.score ? publicScore(game.score) : null,
@@ -838,6 +867,13 @@ async function handleApi(req, res, url) {
       return;
     }
 
+    if (parts[1] === 'leave') {
+      const { game } = abandonGame(body.code, body.playerId);
+      broadcast(game);
+      sendJson(res, 200, { state: serializeGame(game, body.playerId) });
+      return;
+    }
+
     fail(404, 'API-rutten hittades inte.');
   } catch (error) {
     sendError(res, error);
@@ -851,6 +887,7 @@ const contentTypes = new Map([
   ['.json', 'application/json; charset=utf-8'],
   ['.svg', 'image/svg+xml; charset=utf-8'],
   ['.png', 'image/png'],
+  ['.mp3', 'audio/mpeg'],
   ['.ico', 'image/x-icon']
 ]);
 
@@ -922,6 +959,7 @@ module.exports = {
   GameError,
   MAX_ENERGY,
   SONAR_COST,
+  abandonGame,
   createGame,
   joinGame,
   getHighScores,

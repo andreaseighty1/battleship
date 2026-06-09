@@ -166,6 +166,7 @@ function containsProfanity(value: unknown): boolean {
 
 function cleanName(value: unknown, fallback = 'Captain'): string {
   const name = String(value || '').trim().replace(/\s+/g, ' ');
+  if (!name) fail(400, 'Skriv ett namn.');
   const chosenName = (name || fallback).slice(0, 24);
   if (containsProfanity(chosenName)) fail(400, 'Välj ett annat namn.');
   return chosenName;
@@ -393,6 +394,8 @@ async function createGame(hostName: unknown, mode: unknown = DEFAULT_MODE): Prom
     shotsByPlayer: { [host.id]: [] },
     turnPlayerId: null,
     winnerId: null,
+    abandonedByPlayerId: null,
+    abandonedAt: null,
     score: null,
     log: []
   };
@@ -430,6 +433,22 @@ async function joinGame(codeInput: unknown, playerName: unknown): Promise<{ game
   logEvent(game, 'system', `${player.name} gick med. Placera skeppen!`);
   await saveGame(game);
   return { game, code: game.code, playerId: player.id };
+}
+
+async function abandonGame(codeInput: unknown, playerId: unknown): Promise<any> {
+  const game = await loadGame(codeInput);
+  const player = getPlayer(game, playerId);
+  if (game.status === 'finished' || game.status === 'abandoned') return game;
+
+  game.status = 'abandoned';
+  game.turnPlayerId = null;
+  game.abandonedByPlayerId = player.id;
+  game.abandonedAt = Date.now();
+  game.finishedAt = game.abandonedAt;
+  touch(game);
+  logEvent(game, 'system', `${player.name} lämnade matchen.`);
+  await saveGame(game);
+  return game;
 }
 
 function assertBoardCell(x: number, y: number): void {
@@ -684,6 +703,7 @@ function serializeGame(game: any, playerId: unknown): any {
   const opponent = getOpponent(game, playerId);
   const turnPlayer = game.players.find((entry: any) => entry.id === game.turnPlayerId) || null;
   const winner = game.players.find((entry: any) => entry.id === game.winnerId) || null;
+  const abandonedBy = game.players.find((entry: any) => entry.id === game.abandonedByPlayerId) || null;
   const ownStats = shotStatsFor(game, player.id);
   const incomingStats = opponent ? shotStatsFor(game, opponent.id) : { shots: 0, hits: 0, misses: 0, accuracy: 0 };
 
@@ -703,6 +723,7 @@ function serializeGame(game: any, playerId: unknown): any {
     })),
     turn: turnPlayer ? { playerName: turnPlayer.name, isYou: turnPlayer.id === player.id } : null,
     winner: winner ? { playerName: winner.name, isYou: winner.id === player.id } : null,
+    abandonedBy: abandonedBy ? { playerName: abandonedBy.name, isYou: abandonedBy.id === player.id } : null,
     score: game.score ? publicScore(game.score) : null,
     stats: {
       outgoing: ownStats,
@@ -764,6 +785,11 @@ Deno.serve(async (req) => {
     if (parts[0] === 'action') {
       const { game, result } = await performAction(body);
       return json(200, { result, state: serializeGame(game, body.playerId) });
+    }
+
+    if (parts[0] === 'leave') {
+      const game = await abandonGame(body.code, body.playerId);
+      return json(200, { state: serializeGame(game, body.playerId) });
     }
 
     fail(404, 'Route not found.');

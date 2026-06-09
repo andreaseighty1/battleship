@@ -5,6 +5,7 @@ const test = require('node:test');
 const {
   BARRAGE_COST,
   FLEET,
+  abandonGame,
   createGame,
   getHighScores,
   joinGame,
@@ -36,6 +37,10 @@ test('rejects overlapping ships', () => {
 test('rejects profanity in player names', () => {
   const blockedName = ['f', 'u', 'c', 'k'].join('.');
   assert.throws(() => createGame(blockedName, new Map()), /annat namn/);
+});
+
+test('rejects empty player names', () => {
+  assert.throws(() => createGame('   ', new Map()), /namn/);
 });
 
 test('starts when both players have placed their fleets', () => {
@@ -83,6 +88,21 @@ test('classic mode passes turn after hits and blocks powers', () => {
   const hostState = serializeGame(host.game, host.playerId);
   assert.equal(hostState.turn.isYou, false);
   assert.equal(hostState.own.energy, 0);
+});
+
+test('leaving a game abandons it for the opponent without recording a score', () => {
+  const store = new Map();
+  const host = createGame('Ada', store);
+  const guest = joinGame(host.code, 'Bo', store);
+
+  abandonGame(host.code, host.playerId, store);
+
+  const guestState = serializeGame(host.game, guest.playerId);
+  assert.equal(guestState.status, 'abandoned');
+  assert.equal(guestState.abandonedBy.playerName, 'Ada');
+  assert.equal(guestState.abandonedBy.isYou, false);
+  assert.equal(guestState.winner, null);
+  assert.equal(guestState.score, null);
 });
 
 test('sonar spends energy without changing turn', () => {

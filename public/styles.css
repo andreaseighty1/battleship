@@ -461,6 +461,59 @@ input {
   grid-template-columns: minmax(260px, 0.38fr) minmax(0, 0.62fr);
 }
 
+.placement-controls-panel {
+  align-self: start;
+}
+
+.placement-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.placement-header h2 {
+  margin: 0;
+}
+
+.placement-header span:not(.chip) {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.fleet-dock {
+  grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
+}
+
+.fleet-dock .ship-button {
+  grid-template-columns: 1fr;
+  gap: 6px;
+  min-height: 58px;
+  padding: 8px;
+}
+
+.fleet-dock .ship-button strong {
+  font-size: 0.78rem;
+  line-height: 1.1;
+}
+
+.fleet-dock .ship-pips {
+  order: -1;
+  flex-wrap: wrap;
+}
+
+.placement-toolbar {
+  margin-top: 10px;
+}
+
+.placement-toolbar .btn {
+  flex: 1 1 92px;
+}
+
 .game-grid {
   grid-template-columns: minmax(330px, 0.9fr) minmax(330px, 1.1fr) minmax(260px, 0.45fr);
   align-items: start;
@@ -995,6 +1048,14 @@ button.cell:not(:disabled):hover {
     justify-content: flex-start;
   }
 
+  .placement-board-panel {
+    order: 1;
+  }
+
+  .placement-controls-panel {
+    order: 2;
+  }
+
   .join-grid {
     grid-template-columns: 1fr;
   }
@@ -1101,6 +1162,10 @@ button.cell:not(:disabled):hover {
   .toolbar > .btn,
   .toolbar > .segmented {
     flex: 1 1 128px;
+  }
+
+  .placement-toolbar .btn {
+    flex-basis: calc(50% - 4px);
   }
 
   .segmented {
