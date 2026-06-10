@@ -1205,13 +1205,12 @@
     const style = [
       `grid-column: ${start.x + 1} / span ${columnSpan}`,
       `grid-row: ${start.y + 1} / span ${rowSpan}`,
-      `--ship-length: ${length}`,
-      `--ship-image: url("${asset}")`
+      `--ship-length: ${length}`
     ].join('; ');
 
     return `
       <span class="ship-overlay ship-dir-${direction}" style="${style}" aria-hidden="true">
-        <span class="ship-sprite"></span>
+        <img class="ship-sprite" src="${escapeHtml(asset)}" alt="">
       </span>
     `;
   }
