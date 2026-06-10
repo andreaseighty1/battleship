@@ -50,6 +50,26 @@
     victory: assetUrl('sounds/winner_fanfare.mp3'),
     defeat: assetUrl('sounds/loser_fanfare.mp3')
   };
+  const UI_SOUND_PROFILES = {
+    click: [{ frequency: 520, endFrequency: 680, duration: 0.035, volume: 0.018, type: 'triangle' }],
+    select: [
+      { frequency: 520, endFrequency: 690, duration: 0.04, volume: 0.018, type: 'triangle' },
+      { delay: 0.045, frequency: 760, endFrequency: 920, duration: 0.035, volume: 0.014, type: 'sine' }
+    ],
+    rotate: [
+      { frequency: 340, endFrequency: 620, duration: 0.045, volume: 0.019, type: 'square' },
+      { delay: 0.04, frequency: 620, endFrequency: 420, duration: 0.045, volume: 0.014, type: 'triangle' }
+    ],
+    place: [
+      { frequency: 300, endFrequency: 190, duration: 0.06, volume: 0.02, type: 'triangle' },
+      { delay: 0.055, frequency: 740, endFrequency: 940, duration: 0.04, volume: 0.015, type: 'sine' }
+    ],
+    ready: [
+      { frequency: 520, endFrequency: 720, duration: 0.055, volume: 0.02, type: 'triangle' },
+      { delay: 0.06, frequency: 860, endFrequency: 1120, duration: 0.07, volume: 0.018, type: 'sine' }
+    ],
+    error: [{ frequency: 170, endFrequency: 105, duration: 0.09, volume: 0.024, type: 'sawtooth' }]
+  };
   const AUDIO_SETTING_KEY = 'battleship-audio';
   const PLAYER_NAME_KEY = 'battleship-player-name';
   const COPYRIGHT_NOTICE = '© 2026 Andreas Jonsson & 42 Improbable Owls';
@@ -84,6 +104,7 @@
   let lastPlacementPointerAt = 0;
   let nowMs = Date.now();
   let clockTimer = null;
+  let uiAudioContext = null;
   const musicPlayers = {};
   const unavailableAudio = new Set();
 
@@ -168,6 +189,9 @@
       return;
     }
     audioUnlocked = true;
+    if (uiAudioContext && uiAudioContext.state === 'suspended') {
+      uiAudioContext.resume().catch(() => undefined);
+    }
     syncMusic();
   }
 
@@ -253,6 +277,57 @@
     return true;
   }
 
+  function getUiAudioContext() {
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextCtor) {
+      return null;
+    }
+    if (!uiAudioContext) {
+      uiAudioContext = new AudioContextCtor();
+    }
+    if (uiAudioContext.state === 'suspended') {
+      uiAudioContext.resume().catch(() => undefined);
+    }
+    return uiAudioContext;
+  }
+
+  function playUiSound(name = 'click') {
+    if (!audioEnabled || !audioUnlocked) {
+      return false;
+    }
+    const context = getUiAudioContext();
+    const tones = UI_SOUND_PROFILES[name] || UI_SOUND_PROFILES.click;
+    if (!context || !tones) {
+      return false;
+    }
+    const baseTime = context.currentTime + 0.004;
+    tones.forEach((tone) => playUiTone(context, baseTime, tone));
+    return true;
+  }
+
+  function playUiTone(context, baseTime, tone) {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const startTime = baseTime + Number(tone.delay || 0);
+    const duration = Math.max(0.025, Number(tone.duration || 0.04));
+    const startFrequency = Math.max(1, Number(tone.frequency || 440));
+    const endFrequency = Math.max(1, Number(tone.endFrequency || startFrequency));
+    const volume = Math.max(0.001, Number(tone.volume || 0.018));
+
+    oscillator.type = tone.type || 'sine';
+    oscillator.frequency.setValueAtTime(startFrequency, startTime);
+    if (endFrequency !== startFrequency) {
+      oscillator.frequency.exponentialRampToValueAtTime(endFrequency, startTime + duration);
+    }
+    gain.gain.setValueAtTime(0.0001, startTime);
+    gain.gain.exponentialRampToValueAtTime(volume, startTime + Math.min(0.008, duration / 2));
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(startTime);
+    oscillator.stop(startTime + duration + 0.02);
+  }
+
   function chooseSoundSource(source) {
     if (!Array.isArray(source)) {
       return source;
@@ -308,6 +383,7 @@
     writeAudioPreference(audioEnabled);
     if (audioEnabled) {
       audioUnlocked = true;
+      playUiSound('select');
       syncMusic();
     } else {
       pauseMusic();
@@ -1270,6 +1346,7 @@
     document.querySelectorAll('input[name="mode"]').forEach((input) => {
       input.addEventListener('change', () => {
         selectedMode = normalizeModeId(input.value);
+        playUiSound('select');
         render();
       });
     });
@@ -1278,6 +1355,7 @@
         const nextMode = normalizeModeId(option.dataset.mode);
         if (nextMode !== selectedMode) {
           selectedMode = nextMode;
+          playUiSound('select');
           render();
         }
       });
@@ -1314,6 +1392,7 @@
     const form = new FormData(event.currentTarget);
     const name = String(form.get('name') || '').trim();
     if (!name) {
+      playUiSound('error');
       showToast('Skriv ett namn först.');
       return;
     }
@@ -1325,8 +1404,10 @@
       storage.set({ backend: backendMode, code: data.code, playerId: data.playerId });
       state = data.state;
       resetLocalPlacement();
+      playUiSound('ready');
       connectEvents(data.code, data.playerId);
     } catch (error) {
+      playUiSound('error');
       showToast(error.message);
     }
   }
@@ -1337,6 +1418,7 @@
     const form = new FormData(event.currentTarget);
     const name = String(form.get('name') || '').trim();
     if (!name) {
+      playUiSound('error');
       showToast('Skriv ett namn först.');
       return;
     }
@@ -1347,8 +1429,10 @@
       storage.set({ backend: backendMode, code: data.code, playerId: data.playerId });
       state = data.state;
       resetLocalPlacement();
+      playUiSound('ready');
       connectEvents(data.code, data.playerId);
     } catch (error) {
+      playUiSound('error');
       showToast(error.message);
     }
   }
@@ -1357,8 +1441,14 @@
     unlockAudio();
     const action = event.currentTarget.dataset.action;
     if (action === 'toggle-audio') return toggleAudio();
-    if (action === 'leave') return leaveGame();
-    if (action === 'new-game') return leaveGame();
+    if (action === 'leave') {
+      playUiSound('click');
+      return leaveGame();
+    }
+    if (action === 'new-game') {
+      playUiSound('click');
+      return leaveGame();
+    }
     if (action === 'select-ship') return selectShip(event.currentTarget.dataset.ship);
     if (action === 'orientation') return setOrientation(event.currentTarget.dataset.orientation);
     if (action === 'rotate') return rotateOrientation();
@@ -1424,6 +1514,7 @@
       placedShips = placedShips.filter((entry) => entry.id !== shipId);
       selectedShipId = shipId;
       hoverCell = null;
+      playUiSound('select');
       render();
       return;
     }
@@ -1432,6 +1523,7 @@
       return;
     }
     selectedShipId = shipId;
+    playUiSound('select');
     render();
   }
 
@@ -1440,6 +1532,7 @@
       return;
     }
     orientation = orientation === 'horizontal' ? 'vertical' : 'horizontal';
+    playUiSound('rotate');
     render();
   }
 
@@ -1447,7 +1540,11 @@
     if (state && state.own.ready) {
       return;
     }
-    orientation = nextOrientation === 'vertical' ? 'vertical' : 'horizontal';
+    const normalized = nextOrientation === 'vertical' ? 'vertical' : 'horizontal';
+    if (orientation !== normalized) {
+      playUiSound('rotate');
+    }
+    orientation = normalized;
     render();
   }
 
@@ -1456,6 +1553,7 @@
       return;
     }
     resetLocalPlacement();
+    playUiSound('click');
     render();
   }
 
@@ -1470,6 +1568,7 @@
     const cell = readCell(cellElement);
     const candidate = placementCandidate(cell, ship);
     if (!candidate) {
+      playUiSound('error');
       showToast('Skeppet får inte ligga där.');
       return;
     }
@@ -1478,6 +1577,7 @@
     const next = FLEET.find((entry) => !placedShips.some((shipEntry) => shipEntry.id === entry.id));
     selectedShipId = next ? next.id : selectedShipId;
     hoverCell = null;
+    playUiSound('place');
     render();
   }
 
@@ -1501,11 +1601,13 @@
       }
     }
     if (ships.length !== FLEET.length) {
+      playUiSound('error');
       showToast('Auto-placering misslyckades.');
       return;
     }
     placedShips = ships;
     hoverCell = null;
+    playUiSound('place');
     render();
   }
 
@@ -1520,8 +1622,10 @@
         ships: placedShips
       });
       state = data.state;
+      playUiSound('ready');
       render();
     } catch (error) {
+      playUiSound('error');
       showToast(error.message);
     }
   }
@@ -1529,10 +1633,12 @@
   function selectAbility(ability) {
     if (!hasArcadePowers() && ability !== 'shot') {
       selectedAbility = 'shot';
+      playUiSound('error');
       render();
       return;
     }
     selectedAbility = ability;
+    playUiSound('select');
     render();
   }
 
@@ -1543,6 +1649,7 @@
     const cell = readCell(cellElement);
     const ability = hasArcadePowers() ? selectedAbility : 'shot';
     if (ability === 'shot' && shotAt(state.target.outgoingShots, cell.x, cell.y)) {
+      playUiSound('error');
       showToast('Den rutan är redan beskjuten.');
       return;
     }
@@ -1564,6 +1671,7 @@
       }
       render();
     } catch (error) {
+      playUiSound('error');
       showToast(error.message);
     }
   }

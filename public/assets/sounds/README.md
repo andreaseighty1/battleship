@@ -14,4 +14,8 @@ Effects:
 - `winner_fanfare.mp3` - winner sting.
 - `loser_fanfare.mp3` - loser sting.
 
+UI sounds:
+- Small click, select, rotate, place, ready, and error sounds are generated in code with Web Audio.
+- No extra files are needed for the UI sounds.
+
 Missing files are ignored silently, so these can be added one by one.
