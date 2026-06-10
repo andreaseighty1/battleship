@@ -31,6 +31,7 @@ npm.cmd test
 
 - En spelare skapar ett rum och får en kod.
 - Andra spelaren anger koden för att gå med.
+- Rumskoden gäller i 5 minuter. Om ingen ansluter går rummet ut.
 - Båda placerar fem klassiska skepp manuellt eller med auto-placering.
 - Spelplanerna visar klassiska koordinater: A-J och 1-10.
 - Skaparen väljer Classic eller Arcade när rummet skapas.

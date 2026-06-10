@@ -6,6 +6,7 @@ const {
   BARRAGE_COST,
   FLEET,
   GAME_TTL_MS,
+  LOBBY_TTL_MS,
   abandonGame,
   createGame,
   getHighScores,
@@ -63,8 +64,25 @@ test('starts when both players have placed their fleets', () => {
   assert.equal(hostState.mode.id, 'arcade');
   assert.equal(hostState.timing.maxDurationMs, GAME_TTL_MS);
   assert.ok(hostState.timing.expiresAt - hostState.timing.createdAt === GAME_TTL_MS);
+  assert.equal(hostState.timing.lobbyDurationMs, LOBBY_TTL_MS);
   assert.ok(hostState.timing.turnStartedAt >= hostState.timing.startedAt);
   assert.equal(hostState.turn.isYou, true);
+});
+
+test('expires waiting lobbies after five minutes', () => {
+  const store = new Map();
+  const host = createGame('Ada', store);
+  host.game.lobbyExpiresAt = Date.now() - 1;
+
+  const hostState = serializeGame(host.game, host.playerId);
+  assert.equal(hostState.status, 'expired');
+  assert.equal(hostState.timing.expiredReason, 'lobby');
+  assert.equal(hostState.timing.lobbyDurationMs, LOBBY_TTL_MS);
+  assert.equal(hostState.score, null);
+  assert.throws(
+    () => joinGame(host.code, 'Bo', store),
+    /gått ut/
+  );
 });
 
 test('hit keeps turn and miss passes it', () => {

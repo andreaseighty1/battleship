@@ -457,6 +457,14 @@
     return state && state.timing ? state.timing : {};
   }
 
+  function isLobbyWaiting() {
+    return state && state.status === 'waiting';
+  }
+
+  function usesLobbyTimer() {
+    return state && (state.status === 'waiting' || timing().expiredReason === 'lobby');
+  }
+
   function elapsedSince(value) {
     const time = readTime(value);
     return time ? Math.max(0, nowMs - time) : 0;
@@ -465,6 +473,18 @@
   function remainingUntil(value) {
     const time = readTime(value);
     return time ? Math.max(0, time - nowMs) : 0;
+  }
+
+  function activeExpiresAt() {
+    const info = timing();
+    return usesLobbyTimer() ? info.lobbyExpiresAt : info.expiresAt;
+  }
+
+  function activeMaxDurationMs() {
+    const info = timing();
+    return usesLobbyTimer()
+      ? (info.lobbyDurationMs || 5 * 60 * 1000)
+      : (info.maxDurationMs || 48 * 60 * 60 * 1000);
   }
 
   function matchElapsedMs() {
@@ -502,11 +522,15 @@
     if (!state || !state.timing) {
       return '';
     }
-    const remaining = remainingUntil(state.timing.expiresAt);
+    const remaining = remainingUntil(activeExpiresAt());
     const elapsed = matchElapsedMs();
+    const lobbyTimer = usesLobbyTimer();
+    const elapsedLabel = lobbyTimer ? 'Kod' : 'Tid';
+    const remainingLabel = lobbyTimer ? 'Koden kvar' : 'Kvar';
+    const warningAt = lobbyTimer ? 60 * 1000 : 60 * 60 * 1000;
     return `
-      <span class="chip time-chip">Tid ${escapeHtml(formatDuration(elapsed))}</span>
-      <span class="chip time-chip ${remaining <= 60 * 60 * 1000 ? 'is-warning' : ''}">Kvar ${escapeHtml(formatDuration(remaining))}</span>
+      <span class="chip time-chip">${escapeHtml(elapsedLabel)} ${escapeHtml(formatDuration(elapsed))}</span>
+      <span class="chip time-chip ${remaining <= warningAt ? 'is-warning' : ''}">${escapeHtml(remainingLabel)} ${escapeHtml(formatDuration(remaining))}</span>
     `;
   }
 
@@ -514,12 +538,15 @@
     if (!state || !state.timing) {
       return '';
     }
-    const remaining = remainingUntil(state.timing.expiresAt);
-    const maxDuration = state.timing.maxDurationMs || (48 * 60 * 60 * 1000);
+    const remaining = remainingUntil(activeExpiresAt());
+    const maxDuration = activeMaxDurationMs();
+    const lobbyTimer = usesLobbyTimer();
+    const firstLabel = lobbyTimer ? 'Kodtid' : 'Matchtid';
+    const remainingLabel = lobbyTimer ? 'Koden kvar' : 'Kvar';
     return `
       <div class="time-panel">
         <div>
-          <span>Matchtid</span>
+          <span>${escapeHtml(firstLabel)}</span>
           <strong>${escapeHtml(formatDuration(matchElapsedMs()))}</strong>
         </div>
         <div>
@@ -527,7 +554,7 @@
           <strong>${escapeHtml(formatDuration(maxDuration))}</strong>
         </div>
         <div>
-          <span>Kvar</span>
+          <span>${escapeHtml(remainingLabel)}</span>
           <strong>${escapeHtml(formatDuration(remaining))}</strong>
         </div>
       </div>
@@ -697,7 +724,7 @@
     if (state.status === 'playing') return state.turn && state.turn.isYou ? 'Din tur' : 'Motståndarens tur';
     if (state.status === 'finished') return 'Avgjord';
     if (state.status === 'abandoned') return 'Avslutad';
-    if (state.status === 'expired') return 'Tiden ute';
+    if (state.status === 'expired') return timing().expiredReason === 'lobby' ? 'Koden ute' : 'Tiden ute';
     return state.status;
   }
 
@@ -745,6 +772,9 @@
     }
     if (state.status === 'waiting') {
       return renderWaiting();
+    }
+    if (state.status === 'expired' && timing().expiredReason === 'lobby') {
+      return renderExpiredLobby();
     }
     if (state.status === 'placing') {
       return renderPlacement();
@@ -805,6 +835,23 @@
           <h2>Rumskod</h2>
           <div class="code-value">${escapeHtml(state.code)}</div>
           ${renderTimePanel()}
+        </div>
+        <div class="panel">
+          <h2>Spelare</h2>
+          ${renderPlayers()}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderExpiredLobby() {
+    return `
+      <section class="status-grid">
+        <div class="panel">
+          <h2>Koden gick ut</h2>
+          <div class="score-summary">Ingen motståndare anslöt inom 5 minuter.</div>
+          ${renderTimePanel()}
+          <button class="btn primary" data-action="new-game" type="button">Nytt spel</button>
         </div>
         <div class="panel">
           <h2>Spelare</h2>
@@ -888,10 +935,11 @@
 
   function renderOutcome() {
     if (state.status === 'expired') {
+      const lobbyExpired = timing().expiredReason === 'lobby';
       return `
         <div class="energy">
-          <h2>Tiden gick ut</h2>
-          <div class="score-summary">Matchen passerade 48 timmar. Ingen highscore sparades.</div>
+          <h2>${lobbyExpired ? 'Koden gick ut' : 'Tiden gick ut'}</h2>
+          <div class="score-summary">${lobbyExpired ? 'Ingen motståndare anslöt inom 5 minuter.' : 'Matchen passerade 48 timmar. Ingen highscore sparades.'}</div>
           <button class="btn primary" data-action="new-game" type="button">Nytt spel</button>
         </div>
       `;

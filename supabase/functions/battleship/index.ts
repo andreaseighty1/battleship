@@ -4,6 +4,7 @@ const BOARD_SIZE = 10;
 const SONAR_COST = 2;
 const BARRAGE_COST = 5;
 const MAX_ENERGY = 9;
+const LOBBY_TTL_MS = 5 * 60 * 1000;
 const GAME_TTL_MS = 48 * 60 * 60 * 1000;
 const DEFAULT_MODE = 'arcade';
 const GAME_MODES = Object.freeze({
@@ -247,6 +248,9 @@ function ensureTiming(game: any): void {
   if (!Number.isFinite(Number(game.expiresAt))) {
     game.expiresAt = game.createdAt + GAME_TTL_MS;
   }
+  if (!Number.isFinite(Number(game.lobbyExpiresAt))) {
+    game.lobbyExpiresAt = game.createdAt + LOBBY_TTL_MS;
+  }
   if (game.status === 'playing' && !Number.isFinite(Number(game.turnStartedAt))) {
     game.turnStartedAt = game.startedAt || game.updatedAt || game.createdAt;
   }
@@ -266,16 +270,36 @@ function setTurn(game: any, playerId: string): void {
 
 function expireGameIfNeeded(game: any): boolean {
   ensureTiming(game);
-  if (isTerminalStatus(game.status) || Date.now() <= game.expiresAt) {
+  if (isTerminalStatus(game.status)) {
     return false;
   }
 
+  const now = Date.now();
+  const lobbyExpired = game.status === 'waiting' && now > game.lobbyExpiresAt;
+  const matchExpired = now > game.expiresAt;
+  if (!lobbyExpired && !matchExpired) {
+    return false;
+  }
+
+  const reason = lobbyExpired ? 'lobby' : 'match';
   game.status = 'expired';
-  game.expiredAt = game.expiresAt;
+  game.expiredReason = reason;
+  game.expiredAt = reason === 'lobby' ? game.lobbyExpiresAt : game.expiresAt;
   game.finishedAt = game.expiredAt;
   clearTurn(game);
-  logEvent(game, 'system', 'Matchen gick ut efter 48 timmar. Ingen highscore sparades.');
+  logEvent(
+    game,
+    'system',
+    reason === 'lobby'
+      ? 'Rumskoden gick ut efter 5 minuter.'
+      : 'Matchen gick ut efter 48 timmar. Ingen highscore sparades.'
+  );
   return true;
+}
+
+function activeExpiresAt(game: any): number {
+  ensureTiming(game);
+  return game.status === 'waiting' ? game.lobbyExpiresAt : game.expiresAt;
 }
 
 function publicScore(score: any): any {
@@ -426,7 +450,7 @@ async function saveGame(game: any): Promise<void> {
     .update({
       data: game,
       updated_at: new Date().toISOString(),
-      expires_at: new Date(game.expiresAt).toISOString()
+      expires_at: new Date(activeExpiresAt(game)).toISOString()
     })
     .eq('code', game.code);
   if (error) fail(500, error.message);
@@ -445,10 +469,12 @@ async function createGame(hostName: unknown, mode: unknown = DEFAULT_MODE): Prom
     createdAt: now,
     updatedAt: now,
     expiresAt: now + GAME_TTL_MS,
+    lobbyExpiresAt: now + LOBBY_TTL_MS,
     status: 'waiting',
     startedAt: null,
     finishedAt: null,
     expiredAt: null,
+    expiredReason: null,
     players: [host],
     shotsByPlayer: { [host.id]: [] },
     turnPlayerId: null,
@@ -463,7 +489,7 @@ async function createGame(hostName: unknown, mode: unknown = DEFAULT_MODE): Prom
 
   const { error } = await admin!
     .from('battleship_games')
-    .insert({ code, data: game, expires_at: new Date(game.expiresAt).toISOString() });
+    .insert({ code, data: game, expires_at: new Date(activeExpiresAt(game)).toISOString() });
   if (error) fail(500, error.message);
   const tick = await admin!.rpc('battleship_tick_game', { game_code: code });
   if (tick.error) fail(500, tick.error.message);
@@ -782,8 +808,11 @@ function serializeGame(game: any, playerId: unknown): any {
       startedAt: game.startedAt,
       finishedAt: game.finishedAt,
       expiredAt: game.expiredAt || null,
+      expiredReason: game.expiredReason || null,
+      lobbyExpiresAt: game.lobbyExpiresAt,
       expiresAt: game.expiresAt,
       turnStartedAt: game.turnStartedAt || null,
+      lobbyDurationMs: LOBBY_TTL_MS,
       maxDurationMs: GAME_TTL_MS
     },
     fleet: FLEET,
