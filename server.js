@@ -14,7 +14,6 @@ const SONAR_COST = 2;
 const BARRAGE_COST = 5;
 const MAX_ENERGY = 9;
 const GAME_TTL_MS = 48 * 60 * 60 * 1000;
-const TERMINAL_STATUSES = new Set(['finished', 'abandoned', 'expired']);
 const DEFAULT_MODE = 'arcade';
 const GAME_MODES = Object.freeze({
   classic: Object.freeze({
@@ -183,7 +182,7 @@ function touch(game) {
 }
 
 function isTerminalStatus(status) {
-  return TERMINAL_STATUSES.has(status);
+  return status === 'finished' || status === 'abandoned' || status === 'expired';
 }
 
 function ensureTiming(game) {
