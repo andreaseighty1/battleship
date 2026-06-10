@@ -13,6 +13,8 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const SONAR_COST = 2;
 const BARRAGE_COST = 5;
 const MAX_ENERGY = 9;
+const GAME_TTL_MS = 48 * 60 * 60 * 1000;
+const TERMINAL_STATUSES = new Set(['finished', 'abandoned', 'expired']);
 const DEFAULT_MODE = 'arcade';
 const GAME_MODES = Object.freeze({
   classic: Object.freeze({
@@ -180,6 +182,52 @@ function touch(game) {
   game.updatedAt = Date.now();
 }
 
+function isTerminalStatus(status) {
+  return TERMINAL_STATUSES.has(status);
+}
+
+function ensureTiming(game) {
+  const now = Date.now();
+  if (!Number.isFinite(Number(game.createdAt))) {
+    game.createdAt = now;
+  }
+  if (!Number.isFinite(Number(game.updatedAt))) {
+    game.updatedAt = game.createdAt;
+  }
+  if (!Number.isFinite(Number(game.expiresAt))) {
+    game.expiresAt = game.createdAt + GAME_TTL_MS;
+  }
+  if (game.status === 'playing' && !Number.isFinite(Number(game.turnStartedAt))) {
+    game.turnStartedAt = game.startedAt || game.updatedAt || game.createdAt;
+  }
+}
+
+function clearTurn(game) {
+  game.turnPlayerId = null;
+  game.turnStartedAt = null;
+}
+
+function setTurn(game, playerId) {
+  if (game.turnPlayerId !== playerId || !Number.isFinite(Number(game.turnStartedAt))) {
+    game.turnStartedAt = Date.now();
+  }
+  game.turnPlayerId = playerId;
+}
+
+function expireGameIfNeeded(game) {
+  ensureTiming(game);
+  if (isTerminalStatus(game.status) || Date.now() <= game.expiresAt) {
+    return false;
+  }
+
+  game.status = 'expired';
+  game.expiredAt = game.expiresAt;
+  game.finishedAt = game.expiredAt;
+  clearTurn(game);
+  logEvent(game, 'system', 'Matchen gick ut efter 48 timmar. Ingen highscore sparades.');
+  return true;
+}
+
 function compareScores(a, b) {
   return a.durationMs - b.durationMs || a.shots - b.shots || a.finishedAt - b.finishedAt;
 }
@@ -251,19 +299,23 @@ function createGame(hostName, store = games, mode = DEFAULT_MODE) {
   const code = generateCode(store);
   const host = createPlayer(hostName, 0);
   const gameMode = normalizeMode(mode);
+  const now = Date.now();
   const game = {
     code,
     mode: gameMode,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
+    createdAt: now,
+    updatedAt: now,
+    expiresAt: now + GAME_TTL_MS,
     status: 'waiting',
     startedAt: null,
     finishedAt: null,
+    expiredAt: null,
     players: [host],
     shotsByPlayer: {
       [host.id]: []
     },
     turnPlayerId: null,
+    turnStartedAt: null,
     winnerId: null,
     abandonedByPlayerId: null,
     abandonedAt: null,
@@ -282,6 +334,7 @@ function getGame(codeInput, store = games) {
   if (!game) {
     fail(404, 'Rummet hittades inte.');
   }
+  expireGameIfNeeded(game);
   return game;
 }
 
@@ -302,6 +355,9 @@ function joinGame(codeInput, playerName, store = games) {
   if (game.players.length >= 2) {
     fail(409, 'Rummet är fullt.');
   }
+  if (game.status === 'expired') {
+    fail(410, 'Rummet har gått ut.');
+  }
   if (game.status !== 'waiting') {
     fail(409, 'Rummet har redan startat.');
   }
@@ -319,12 +375,12 @@ function joinGame(codeInput, playerName, store = games) {
 function abandonGame(codeInput, playerId, store = games) {
   const game = getGame(codeInput, store);
   const player = getPlayer(game, playerId);
-  if (game.status === 'finished' || game.status === 'abandoned') {
+  if (isTerminalStatus(game.status)) {
     return { game };
   }
 
   game.status = 'abandoned';
-  game.turnPlayerId = null;
+  clearTurn(game);
   game.abandonedByPlayerId = player.id;
   game.abandonedAt = Date.now();
   game.finishedAt = game.abandonedAt;
@@ -415,6 +471,9 @@ function validateFleet(rawShips) {
 function placeFleet(codeInput, playerId, rawShips, store = games) {
   const game = getGame(codeInput, store);
   const player = getPlayer(game, playerId);
+  if (game.status === 'expired') {
+    fail(410, 'Matchen har gått ut.');
+  }
   if (game.status !== 'placing') {
     fail(409, 'Det går inte att placera skepp just nu.');
   }
@@ -432,7 +491,7 @@ function placeFleet(codeInput, playerId, rawShips, store = games) {
   if (game.players.length === 2 && game.players.every((entry) => entry.ready)) {
     game.status = 'playing';
     game.startedAt = Date.now();
-    game.turnPlayerId = game.players[0].id;
+    setTurn(game, game.players[0].id);
     logEvent(game, 'system', `Matchen startade. ${game.players[0].name} börjar.`);
   }
 
@@ -502,7 +561,7 @@ function formatCell(x, y) {
 
 function finishGame(game, winner) {
   game.status = 'finished';
-  game.turnPlayerId = null;
+  clearTurn(game);
   game.winnerId = winner.id;
   recordHighScore(game, winner);
   logEvent(game, 'win', `${winner.name} vann matchen.`);
@@ -530,7 +589,7 @@ function performShot(game, attacker, defender, x, y) {
   if (isFleetSunkBy(game, attacker.id, defender)) {
     finishGame(game, attacker);
   } else if (!outcome.hit || !settings.hitKeepsTurn) {
-    game.turnPlayerId = defender.id;
+    setTurn(game, defender.id);
   }
 
   return { ability: 'shot', ...outcome };
@@ -599,7 +658,7 @@ function performBarrage(game, attacker, defender, x, y) {
   if (isFleetSunkBy(game, attacker.id, defender)) {
     finishGame(game, attacker);
   } else {
-    game.turnPlayerId = defender.id;
+    setTurn(game, defender.id);
   }
 
   return { ability: 'barrage', shots: outcomes.map((outcome) => outcome.shot) };
@@ -609,6 +668,9 @@ function performAction(codeInput, playerId, body, store = games) {
   const game = getGame(codeInput, store);
   const attacker = getPlayer(game, playerId);
   const defender = getOpponent(game, playerId);
+  if (game.status === 'expired') {
+    fail(410, 'Matchen har gått ut.');
+  }
   if (game.status !== 'playing') {
     fail(409, 'Matchen är inte igång.');
   }
@@ -652,6 +714,7 @@ function cloneShot(shot) {
 }
 
 function serializeGame(game, playerId) {
+  expireGameIfNeeded(game);
   const player = getPlayer(game, playerId);
   const opponent = getOpponent(game, playerId);
   const turnPlayer = game.players.find((entry) => entry.id === game.turnPlayerId) || null;
@@ -665,6 +728,16 @@ function serializeGame(game, playerId) {
     mode: publicMode(game),
     status: game.status,
     boardSize: BOARD_SIZE,
+    timing: {
+      createdAt: game.createdAt,
+      updatedAt: game.updatedAt,
+      startedAt: game.startedAt,
+      finishedAt: game.finishedAt,
+      expiredAt: game.expiredAt || null,
+      expiresAt: game.expiresAt,
+      turnStartedAt: game.turnStartedAt || null,
+      maxDurationMs: GAME_TTL_MS
+    },
     fleet: FLEET,
     playerId: player.id,
     playerName: player.name,
@@ -926,9 +999,15 @@ function handleRequest(req, res) {
 }
 
 function cleanupOldGames() {
-  const cutoff = Date.now() - 12 * 60 * 60 * 1000;
+  const now = Date.now();
+  const cleanupGraceMs = 60 * 60 * 1000;
   for (const [code, game] of games) {
-    if (game.updatedAt < cutoff) {
+    expireGameIfNeeded(game);
+    const finishedAt = Number(game.finishedAt || game.expiredAt || 0);
+    const expiresAt = Number(game.expiresAt || 0);
+    const shouldDelete = (isTerminalStatus(game.status) && finishedAt && finishedAt < now - cleanupGraceMs)
+      || (expiresAt && expiresAt < now - cleanupGraceMs);
+    if (shouldDelete) {
       games.delete(code);
       const roomSubscribers = subscribers.get(code);
       if (roomSubscribers) {
@@ -955,6 +1034,7 @@ module.exports = {
   BARRAGE_COST,
   BOARD_SIZE,
   GAME_MODES,
+  GAME_TTL_MS,
   FLEET,
   GameError,
   MAX_ENERGY,

@@ -5,6 +5,7 @@ const test = require('node:test');
 const {
   BARRAGE_COST,
   FLEET,
+  GAME_TTL_MS,
   abandonGame,
   createGame,
   getHighScores,
@@ -60,6 +61,9 @@ test('starts when both players have placed their fleets', () => {
   const hostState = serializeGame(host.game, host.playerId);
   assert.equal(hostState.status, 'playing');
   assert.equal(hostState.mode.id, 'arcade');
+  assert.equal(hostState.timing.maxDurationMs, GAME_TTL_MS);
+  assert.ok(hostState.timing.expiresAt - hostState.timing.createdAt === GAME_TTL_MS);
+  assert.ok(hostState.timing.turnStartedAt >= hostState.timing.startedAt);
   assert.equal(hostState.turn.isYou, true);
 });
 
@@ -73,8 +77,26 @@ test('hit keeps turn and miss passes it', () => {
   performAction(host.code, host.playerId, { ability: 'shot', x: 0, y: 5 }, store);
   assert.equal(serializeGame(host.game, host.playerId).turn.isYou, true);
 
+  host.game.turnStartedAt = 1000;
   performAction(host.code, host.playerId, { ability: 'shot', x: 9, y: 9 }, store);
   assert.equal(serializeGame(host.game, host.playerId).turn.isYou, false);
+  assert.ok(host.game.turnStartedAt > 1000);
+});
+
+test('expires games after forty-eight hours without recording a score', () => {
+  const store = new Map();
+  const host = createGame('Ada', store);
+  joinGame(host.code, 'Bo', store);
+  host.game.expiresAt = Date.now() - 1;
+
+  const hostState = serializeGame(host.game, host.playerId);
+  assert.equal(hostState.status, 'expired');
+  assert.equal(hostState.score, null);
+  assert.equal(hostState.timing.maxDurationMs, GAME_TTL_MS);
+  assert.throws(
+    () => placeFleet(host.code, host.playerId, fleetFromRows(0), store),
+    /gått ut/
+  );
 });
 
 test('classic mode passes turn after hits and blocks powers', () => {

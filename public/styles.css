@@ -204,6 +204,19 @@ input {
   background: rgba(209, 73, 91, 0.1);
 }
 
+.chip.time-chip {
+  min-width: 94px;
+  color: #24535d;
+  border-color: rgba(72, 159, 181, 0.34);
+  background: rgba(130, 192, 204, 0.16);
+}
+
+.chip.time-chip.is-warning {
+  color: #9d2131;
+  border-color: rgba(209, 73, 91, 0.36);
+  background: rgba(209, 73, 91, 0.1);
+}
+
 .screen {
   display: grid;
   gap: 16px;
@@ -546,6 +559,56 @@ input {
 
 .placement-toolbar .btn {
   flex: 1 1 92px;
+}
+
+.time-panel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
+.time-panel > div {
+  min-width: 0;
+  border: 1px solid rgba(72, 159, 181, 0.3);
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(130, 192, 204, 0.12);
+}
+
+.time-panel span,
+.wait-card span,
+.wait-card small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.time-panel strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.94rem;
+  line-height: 1.1;
+}
+
+.wait-card {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(209, 73, 91, 0.28);
+  border-radius: 8px;
+  padding: 12px;
+  background:
+    linear-gradient(135deg, rgba(209, 73, 91, 0.09), rgba(244, 211, 94, 0.1)),
+    rgba(255, 255, 255, 0.68);
+}
+
+.wait-card strong {
+  color: var(--ink);
+  font-size: 1.38rem;
+  line-height: 1;
 }
 
 .game-grid {

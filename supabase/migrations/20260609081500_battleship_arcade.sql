@@ -2,7 +2,8 @@ create table if not exists public.battleship_games (
   code text primary key,
   data jsonb not null,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  expires_at timestamptz
 );
 
 create table if not exists public.battleship_game_ticks (
@@ -32,6 +33,12 @@ add column if not exists misses integer not null default 0;
 
 alter table public.battleship_scores
 add column if not exists mode text not null default 'arcade';
+
+alter table public.battleship_games
+add column if not exists expires_at timestamptz;
+
+create index if not exists battleship_games_expires_at_idx
+on public.battleship_games (expires_at asc);
 
 create index if not exists battleship_scores_fastest_idx
 on public.battleship_scores (duration_ms asc, shots asc, finished_at asc);

@@ -4,7 +4,9 @@ const BOARD_SIZE = 10;
 const SONAR_COST = 2;
 const BARRAGE_COST = 5;
 const MAX_ENERGY = 9;
+const GAME_TTL_MS = 48 * 60 * 60 * 1000;
 const DEFAULT_MODE = 'arcade';
+const TERMINAL_STATUSES = new Set(['finished', 'abandoned', 'expired']);
 const GAME_MODES = Object.freeze({
   classic: Object.freeze({
     id: 'classic',
@@ -231,6 +233,52 @@ function touch(game: any): void {
   game.updatedAt = Date.now();
 }
 
+function isTerminalStatus(status: unknown): boolean {
+  return TERMINAL_STATUSES.has(String(status));
+}
+
+function ensureTiming(game: any): void {
+  const now = Date.now();
+  if (!Number.isFinite(Number(game.createdAt))) {
+    game.createdAt = now;
+  }
+  if (!Number.isFinite(Number(game.updatedAt))) {
+    game.updatedAt = game.createdAt;
+  }
+  if (!Number.isFinite(Number(game.expiresAt))) {
+    game.expiresAt = game.createdAt + GAME_TTL_MS;
+  }
+  if (game.status === 'playing' && !Number.isFinite(Number(game.turnStartedAt))) {
+    game.turnStartedAt = game.startedAt || game.updatedAt || game.createdAt;
+  }
+}
+
+function clearTurn(game: any): void {
+  game.turnPlayerId = null;
+  game.turnStartedAt = null;
+}
+
+function setTurn(game: any, playerId: string): void {
+  if (game.turnPlayerId !== playerId || !Number.isFinite(Number(game.turnStartedAt))) {
+    game.turnStartedAt = Date.now();
+  }
+  game.turnPlayerId = playerId;
+}
+
+function expireGameIfNeeded(game: any): boolean {
+  ensureTiming(game);
+  if (isTerminalStatus(game.status) || Date.now() <= game.expiresAt) {
+    return false;
+  }
+
+  game.status = 'expired';
+  game.expiredAt = game.expiresAt;
+  game.finishedAt = game.expiredAt;
+  clearTurn(game);
+  logEvent(game, 'system', 'Matchen gick ut efter 48 timmar. Ingen highscore sparades.');
+  return true;
+}
+
 function publicScore(score: any): any {
   const shots = Number(score.shots || 0);
   const hits = Number(score.hits ?? shots);
@@ -365,13 +413,22 @@ async function loadGame(codeInput: unknown): Promise<any> {
     .maybeSingle();
   if (error) fail(500, error.message);
   if (!data) fail(404, 'Room not found.');
-  return data.data;
+  const game = data.data;
+  if (expireGameIfNeeded(game)) {
+    await saveGame(game);
+  }
+  return game;
 }
 
 async function saveGame(game: any): Promise<void> {
+  ensureTiming(game);
   const { error } = await admin!
     .from('battleship_games')
-    .update({ data: game, updated_at: new Date().toISOString() })
+    .update({
+      data: game,
+      updated_at: new Date().toISOString(),
+      expires_at: new Date(game.expiresAt).toISOString()
+    })
     .eq('code', game.code);
   if (error) fail(500, error.message);
   const tick = await admin!.rpc('battleship_tick_game', { game_code: game.code });
@@ -382,17 +439,21 @@ async function createGame(hostName: unknown, mode: unknown = DEFAULT_MODE): Prom
   const code = await generateCode();
   const host = createPlayer(hostName, 0);
   const gameMode = normalizeMode(mode);
+  const now = Date.now();
   const game = {
     code,
     mode: gameMode,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
+    createdAt: now,
+    updatedAt: now,
+    expiresAt: now + GAME_TTL_MS,
     status: 'waiting',
     startedAt: null,
     finishedAt: null,
+    expiredAt: null,
     players: [host],
     shotsByPlayer: { [host.id]: [] },
     turnPlayerId: null,
+    turnStartedAt: null,
     winnerId: null,
     abandonedByPlayerId: null,
     abandonedAt: null,
@@ -403,7 +464,7 @@ async function createGame(hostName: unknown, mode: unknown = DEFAULT_MODE): Prom
 
   const { error } = await admin!
     .from('battleship_games')
-    .insert({ code, data: game });
+    .insert({ code, data: game, expires_at: new Date(game.expiresAt).toISOString() });
   if (error) fail(500, error.message);
   const tick = await admin!.rpc('battleship_tick_game', { game_code: code });
   if (tick.error) fail(500, tick.error.message);
@@ -423,6 +484,7 @@ function getOpponent(game: any, playerId: unknown): any | null {
 async function joinGame(codeInput: unknown, playerName: unknown): Promise<{ game: any; code: string; playerId: string }> {
   const game = await loadGame(codeInput);
   if (game.players.length >= 2) fail(409, 'Room is full.');
+  if (game.status === 'expired') fail(410, 'Rummet har gått ut.');
   if (game.status !== 'waiting') fail(409, 'Room has already started.');
 
   const player = createPlayer(playerName, 1);
@@ -438,10 +500,10 @@ async function joinGame(codeInput: unknown, playerName: unknown): Promise<{ game
 async function abandonGame(codeInput: unknown, playerId: unknown): Promise<any> {
   const game = await loadGame(codeInput);
   const player = getPlayer(game, playerId);
-  if (game.status === 'finished' || game.status === 'abandoned') return game;
+  if (isTerminalStatus(game.status)) return game;
 
   game.status = 'abandoned';
-  game.turnPlayerId = null;
+  clearTurn(game);
   game.abandonedByPlayerId = player.id;
   game.abandonedAt = Date.now();
   game.finishedAt = game.abandonedAt;
@@ -514,6 +576,7 @@ function validateFleet(rawShips: any): any[] {
 async function placeFleet(codeInput: unknown, playerId: unknown, rawShips: any): Promise<any> {
   const game = await loadGame(codeInput);
   const player = getPlayer(game, playerId);
+  if (game.status === 'expired') fail(410, 'Matchen har gått ut.');
   if (game.status !== 'placing') fail(409, 'You cannot place ships right now.');
   if (player.ready) fail(409, 'You are already ready.');
 
@@ -527,7 +590,7 @@ async function placeFleet(codeInput: unknown, playerId: unknown, rawShips: any):
   if (game.players.length === 2 && game.players.every((entry: any) => entry.ready)) {
     game.status = 'playing';
     game.startedAt = Date.now();
-    game.turnPlayerId = game.players[0].id;
+    setTurn(game, game.players[0].id);
     logEvent(game, 'system', `Matchen startade. ${game.players[0].name} börjar.`);
   }
 
@@ -577,7 +640,7 @@ function resolveSingleShot(game: any, attacker: any, defender: any, x: number, y
 
 function finishGame(game: any, winner: any): void {
   game.status = 'finished';
-  game.turnPlayerId = null;
+  clearTurn(game);
   game.winnerId = winner.id;
   logEvent(game, 'win', `${winner.name} vann matchen.`);
 }
@@ -601,7 +664,7 @@ function performShot(game: any, attacker: any, defender: any, x: number, y: numb
   if (isFleetSunkBy(game, attacker.id, defender)) {
     finishGame(game, attacker);
   } else if (!outcome.hit || !settings.hitKeepsTurn) {
-    game.turnPlayerId = defender.id;
+    setTurn(game, defender.id);
   }
   return { ability: 'shot', ...outcome };
 }
@@ -655,7 +718,7 @@ function performBarrage(game: any, attacker: any, defender: any, x: number, y: n
   if (isFleetSunkBy(game, attacker.id, defender)) {
     finishGame(game, attacker);
   } else {
-    game.turnPlayerId = defender.id;
+    setTurn(game, defender.id);
   }
   return { ability: 'barrage', shots: outcomes.map((outcome) => outcome.shot) };
 }
@@ -664,6 +727,7 @@ async function performAction(body: any): Promise<{ game: any; result: any }> {
   const game = await loadGame(body.code);
   const attacker = getPlayer(game, body.playerId);
   const defender = getOpponent(game, body.playerId);
+  if (game.status === 'expired') fail(410, 'Matchen har gått ut.');
   if (game.status !== 'playing') fail(409, 'Game is not running.');
   if (!defender?.ready) fail(409, 'Waiting for opponent.');
   if (game.turnPlayerId !== attacker.id) fail(409, 'It is not your turn.');
@@ -699,6 +763,7 @@ function cloneShot(shot: any): any {
 }
 
 function serializeGame(game: any, playerId: unknown): any {
+  expireGameIfNeeded(game);
   const player = getPlayer(game, playerId);
   const opponent = getOpponent(game, playerId);
   const turnPlayer = game.players.find((entry: any) => entry.id === game.turnPlayerId) || null;
@@ -712,6 +777,16 @@ function serializeGame(game: any, playerId: unknown): any {
     mode: publicMode(game),
     status: game.status,
     boardSize: BOARD_SIZE,
+    timing: {
+      createdAt: game.createdAt,
+      updatedAt: game.updatedAt,
+      startedAt: game.startedAt,
+      finishedAt: game.finishedAt,
+      expiredAt: game.expiredAt || null,
+      expiresAt: game.expiresAt,
+      turnStartedAt: game.turnStartedAt || null,
+      maxDurationMs: GAME_TTL_MS
+    },
     fleet: FLEET,
     playerId: player.id,
     playerName: player.name,

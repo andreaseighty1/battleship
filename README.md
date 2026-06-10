@@ -35,6 +35,8 @@ npm.cmd test
 - Spelplanerna visar klassiska koordinater: A-J och 1-10.
 - Skaparen väljer Classic eller Arcade när rummet skapas.
 - När båda är redo startar matchen.
+- En match kan som längst pågå i 48 timmar från att rummet skapas. Därefter avslutas den utan highscore.
+- Spelet visar matchtid, kvarvarande tid och hur länge du väntat på motståndarens drag.
 - Classic växlar tur efter varje skott och har inga förmågor.
 - Arcade ger energi vid träffar, låter träffar behålla turen och aktiverar förmågor.
 - Sonar kostar energi och visar hur många skeppsdelar som finns i ett 3x3-område i Arcade.

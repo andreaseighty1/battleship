@@ -82,6 +82,8 @@
   let activeMusicKey = null;
   let lastOutcomeSoundCode = null;
   let lastPlacementPointerAt = 0;
+  let nowMs = Date.now();
+  let clockTimer = null;
   const musicPlayers = {};
   const unavailableAudio = new Set();
 
@@ -434,9 +436,115 @@
 
   function formatDuration(ms) {
     const totalSeconds = Math.max(0, Math.round(Number(ms || 0) / 1000));
-    const minutes = Math.floor(totalSeconds / 60);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
-    return minutes ? `${minutes}m ${String(seconds).padStart(2, '0')}s` : `${seconds}s`;
+    if (hours) {
+      return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+    }
+    if (minutes) {
+      return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+    }
+    return `${seconds}s`;
+  }
+
+  function readTime(value) {
+    const time = Number(value);
+    return Number.isFinite(time) && time > 0 ? time : null;
+  }
+
+  function timing() {
+    return state && state.timing ? state.timing : {};
+  }
+
+  function elapsedSince(value) {
+    const time = readTime(value);
+    return time ? Math.max(0, nowMs - time) : 0;
+  }
+
+  function remainingUntil(value) {
+    const time = readTime(value);
+    return time ? Math.max(0, time - nowMs) : 0;
+  }
+
+  function matchElapsedMs() {
+    const info = timing();
+    return elapsedSince(info.startedAt || info.createdAt);
+  }
+
+  function turnElapsedMs() {
+    const info = timing();
+    return elapsedSince(info.turnStartedAt || info.startedAt || info.createdAt);
+  }
+
+  function shouldTickClock() {
+    if (!state) {
+      return false;
+    }
+    return state.status === 'waiting'
+      || state.status === 'playing'
+      || (state.status === 'placing' && state.own && state.own.ready);
+  }
+
+  function startClock() {
+    if (clockTimer) {
+      return;
+    }
+    clockTimer = window.setInterval(() => {
+      nowMs = Date.now();
+      if (shouldTickClock()) {
+        render();
+      }
+    }, 1000);
+  }
+
+  function renderTimeChips() {
+    if (!state || !state.timing) {
+      return '';
+    }
+    const remaining = remainingUntil(state.timing.expiresAt);
+    const elapsed = matchElapsedMs();
+    return `
+      <span class="chip time-chip">Tid ${escapeHtml(formatDuration(elapsed))}</span>
+      <span class="chip time-chip ${remaining <= 60 * 60 * 1000 ? 'is-warning' : ''}">Kvar ${escapeHtml(formatDuration(remaining))}</span>
+    `;
+  }
+
+  function renderTimePanel() {
+    if (!state || !state.timing) {
+      return '';
+    }
+    const remaining = remainingUntil(state.timing.expiresAt);
+    const maxDuration = state.timing.maxDurationMs || (48 * 60 * 60 * 1000);
+    return `
+      <div class="time-panel">
+        <div>
+          <span>Matchtid</span>
+          <strong>${escapeHtml(formatDuration(matchElapsedMs()))}</strong>
+        </div>
+        <div>
+          <span>Max</span>
+          <strong>${escapeHtml(formatDuration(maxDuration))}</strong>
+        </div>
+        <div>
+          <span>Kvar</span>
+          <strong>${escapeHtml(formatDuration(remaining))}</strong>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderWaitingTurnCard() {
+    if (!state || state.status !== 'playing' || !state.turn || state.turn.isYou) {
+      return '';
+    }
+    return `
+      <div class="wait-card" role="status" aria-live="polite">
+        <span>Väntar på ${escapeHtml(state.turn.playerName)}</span>
+        <strong>${escapeHtml(formatDuration(turnElapsedMs()))}</strong>
+        <small>Sedan motståndarens tur började</small>
+      </div>
+    `;
   }
 
   function normalizeModeId(value) {
@@ -589,6 +697,7 @@
     if (state.status === 'playing') return state.turn && state.turn.isYou ? 'Din tur' : 'Motståndarens tur';
     if (state.status === 'finished') return 'Avgjord';
     if (state.status === 'abandoned') return 'Avslutad';
+    if (state.status === 'expired') return 'Tiden ute';
     return state.status;
   }
 
@@ -609,6 +718,7 @@
           ${state ? `<span class="chip">Kod <strong>${escapeHtml(state.code)}</strong></span>` : ''}
           ${state ? `<span class="chip">${escapeHtml(modeLabel(state.mode))}</span>` : ''}
           <span class="chip ${state && state.status === 'playing' ? 'is-live' : ''}">${escapeHtml(statusLabel())}</span>
+          ${renderTimeChips()}
           ${state && state.turn ? `<span class="chip ${state.turn.isYou ? 'is-turn' : ''}">${escapeHtml(state.turn.playerName)}</span>` : ''}
           <button class="btn ghost audio-toggle" data-action="toggle-audio" type="button" aria-pressed="${audioEnabled ? 'true' : 'false'}">${audioEnabled ? 'Ljud på' : 'Ljud av'}</button>
           ${state ? '<button class="btn ghost" data-action="leave">Lämna</button>' : ''}
@@ -694,6 +804,7 @@
         <div class="panel">
           <h2>Rumskod</h2>
           <div class="code-value">${escapeHtml(state.code)}</div>
+          ${renderTimePanel()}
         </div>
         <div class="panel">
           <h2>Spelare</h2>
@@ -720,6 +831,7 @@
             </div>
             <span class="chip">${locked ? 'Låst' : `${placedShips.length}/${FLEET.length}`}</span>
           </div>
+          ${locked ? renderTimePanel() : ''}
           <div class="fleet-list fleet-dock">${FLEET.map(renderShipButton).join('')}</div>
           <div class="toolbar placement-toolbar">
             <button class="btn" data-action="rotate" type="button" ${locked ? 'disabled' : ''}>Rotera ${orientation === 'horizontal' ? '->' : '^'}</button>
@@ -758,6 +870,8 @@
           ${renderBoard('target')}
         </div>
         <aside class="panel side-panel">
+          ${renderWaitingTurnCard()}
+          ${renderTimePanel()}
           ${renderOutcome()}
           ${renderPowerPanel()}
           ${renderStatsPanel()}
@@ -773,6 +887,16 @@
   }
 
   function renderOutcome() {
+    if (state.status === 'expired') {
+      return `
+        <div class="energy">
+          <h2>Tiden gick ut</h2>
+          <div class="score-summary">Matchen passerade 48 timmar. Ingen highscore sparades.</div>
+          <button class="btn primary" data-action="new-game" type="button">Nytt spel</button>
+        </div>
+      `;
+    }
+
     if (state.status === 'abandoned') {
       const leftText = state.abandonedBy
         ? `${state.abandonedBy.playerName} lämnade matchen.`
@@ -1404,6 +1528,7 @@
   }
 
   async function boot() {
+    startClock();
     await loadScores();
     await loadSession();
   }
