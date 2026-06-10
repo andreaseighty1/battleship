@@ -741,8 +741,8 @@ button.cell:not(:disabled):hover {
 }
 
 .board.has-ship-overlays .cell.is-ship {
-  background: rgba(255, 255, 255, 0.02);
-  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(8, 24, 31, 0.18);
+  border-color: rgba(255, 255, 255, 0.28);
 }
 
 .cell.is-ship::before {
@@ -767,8 +767,8 @@ button.cell:not(:disabled):hover {
   align-self: stretch;
   justify-self: stretch;
   filter:
-    drop-shadow(0 8px 8px rgba(0, 0, 0, 0.24))
-    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.16));
+    drop-shadow(0 8px 9px rgba(0, 0, 0, 0.34))
+    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.22));
 }
 
 .ship-overlay::before {
@@ -777,9 +777,10 @@ button.cell:not(:disabled):hover {
   inset: 16% 5%;
   border-radius: 999px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0)),
-    linear-gradient(90deg, rgba(17, 24, 31, 0.72), rgba(45, 56, 64, 0.56));
-  opacity: 0.62;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.04)),
+    linear-gradient(90deg, rgba(17, 24, 31, 0.94), rgba(45, 56, 64, 0.86));
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.22);
+  opacity: 1;
 }
 
 .ship-sprite {
@@ -790,6 +791,7 @@ button.cell:not(:disabled):hover {
   background-position: center;
   background-size: contain;
   z-index: 1;
+  filter: contrast(1.1) saturate(1.08);
 }
 
 .ship-dir-horizontal .ship-sprite {
@@ -822,14 +824,29 @@ button.cell:not(:disabled):hover {
   z-index: 4;
   background:
     center / cover no-repeat var(--hit-burst),
-    rgba(209, 73, 91, 0.72);
+    #c83f4f;
   border-color: rgba(112, 18, 31, 0.92);
+}
+
+.cell.is-hit::before,
+.cell.is-miss::before {
+  content: "";
+  position: absolute;
+  inset: 18%;
+  z-index: 1;
+  border-radius: 999px;
+}
+
+.cell.is-hit::before {
+  background: radial-gradient(circle, #fff3dd 0 20%, #d1495b 22% 58%, #72121f 62% 100%);
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.32);
 }
 
 .cell.is-hit::after {
   content: "";
-  width: 78%;
-  height: 86%;
+  position: absolute;
+  inset: 8%;
+  z-index: 2;
   background: center / contain no-repeat var(--hit-marker);
   filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.38));
 }
@@ -838,14 +855,21 @@ button.cell:not(:disabled):hover {
   z-index: 4;
   background:
     center / cover no-repeat var(--miss-splash),
-    rgba(242, 204, 143, 0.42);
+    #7cc7d8;
   border-color: rgba(255, 255, 255, 0.72);
+}
+
+.cell.is-miss::before {
+  inset: 22%;
+  background: radial-gradient(circle, #ffffff 0 28%, #82c0cc 32% 64%, #2c7f92 68% 100%);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.24);
 }
 
 .cell.is-miss::after {
   content: "";
-  width: 70%;
-  height: 78%;
+  position: absolute;
+  inset: 12%;
+  z-index: 2;
   background: center / contain no-repeat var(--miss-marker);
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.28));
 }
