@@ -1170,7 +1170,7 @@
         <div class="axis-corner" aria-hidden="true"></div>
         <div class="axis-labels axis-cols" aria-hidden="true">${columns.join('')}</div>
         <div class="axis-labels axis-rows" aria-hidden="true">${rows.join('')}</div>
-        <div class="board ${overlays ? 'has-ship-overlays' : ''}" data-board="${type}">${overlays}${cells.join('')}</div>
+        <div class="board ${overlays ? 'has-ship-overlays' : ''}" data-board="${type}">${cells.join('')}${overlays}</div>
       </div>
     `;
   }
@@ -1221,6 +1221,7 @@
     let content = '';
     let disabled = true;
     const attrs = `data-x="${x}" data-y="${y}"`;
+    const gridStyle = `style="grid-column: ${x + 1}; grid-row: ${y + 1};"`;
 
     if (type === 'placement') {
       const ship = shipAt(placedShips, x, y);
@@ -1255,7 +1256,7 @@
       disabled = !(state.status === 'playing' && state.turn && state.turn.isYou);
     }
 
-    return `<button class="${classes.join(' ')}" ${attrs} data-cell="${type}" type="button" ${disabled ? 'disabled' : ''}>${content}</button>`;
+    return `<button class="${classes.join(' ')}" ${attrs} ${gridStyle} data-cell="${type}" type="button" ${disabled ? 'disabled' : ''}>${content}</button>`;
   }
 
   function shotAt(shots, x, y) {
@@ -1278,11 +1279,15 @@
       return { cells: [], valid: false };
     }
     const ship = FLEET.find((entry) => entry.id === selectedShipId);
-    if (!ship || placedShips.some((entry) => entry.id === ship.id)) {
+    if (!ship) {
       return { cells: [], valid: false };
     }
+    const candidate = placementCandidate(hoverCell, ship);
+    if (candidate) {
+      return { cells: candidate.cells, valid: true };
+    }
     const cells = cellsForShip(hoverCell.x, hoverCell.y, ship.length, orientation);
-    return { cells, valid: isPlacementValid(cells, ship.id) };
+    return { cells, valid: false };
   }
 
   function cellsForShip(x, y, length, direction) {
@@ -1317,11 +1322,38 @@
   }
 
   function placementCandidate(cell, ship) {
-    const cells = cellsForShip(cell.x, cell.y, ship.length, orientation);
+    const primary = placementCandidateForDirection(cell, ship, orientation);
+    if (primary) {
+      return primary;
+    }
+    const fallbackDirection = orientation === 'horizontal' ? 'vertical' : 'horizontal';
+    return placementCandidateForDirection(cell, ship, fallbackDirection);
+  }
+
+  function placementCandidateForDirection(cell, ship, direction) {
+    const start = adjustedShipStart(cell.x, cell.y, ship.length, direction);
+    const cells = cellsForShip(start.x, start.y, ship.length, direction);
     if (isPlacementValid(cells, ship.id, ship.length)) {
-      return { cells, direction: orientation };
+      return { cells, direction };
     }
     return null;
+  }
+
+  function adjustedShipStart(x, y, length, direction) {
+    if (direction === 'vertical') {
+      return {
+        x: clamp(x, 0, BOARD_SIZE - 1),
+        y: clamp(y, 0, BOARD_SIZE - length)
+      };
+    }
+    return {
+      x: clamp(x, 0, BOARD_SIZE - length),
+      y: clamp(y, 0, BOARD_SIZE - 1)
+    };
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
   }
 
   function isPlacementValid(cells, shipId, expectedLength = cells.length) {
@@ -1561,11 +1593,23 @@
     if (state && state.own.ready) {
       return;
     }
-    const ship = FLEET.find((entry) => entry.id === selectedShipId);
-    if (!ship || placedShips.some((entry) => entry.id === ship.id)) {
+    const cell = readCell(cellElement);
+    const clickedShip = shipAt(placedShips, cell.x, cell.y);
+    if (clickedShip) {
+      const line = straightShipLine(clickedShip.cells, clickedShip.cells.length);
+      placedShips = placedShips.filter((entry) => entry.id !== clickedShip.id);
+      selectedShipId = clickedShip.id;
+      orientation = line ? line.direction : orientation;
+      hoverCell = cell;
+      playUiSound('select');
+      render();
       return;
     }
-    const cell = readCell(cellElement);
+
+    const ship = FLEET.find((entry) => entry.id === selectedShipId);
+    if (!ship) {
+      return;
+    }
     const candidate = placementCandidate(cell, ship);
     if (!candidate) {
       playUiSound('error');
@@ -1573,6 +1617,7 @@
       return;
     }
     orientation = candidate.direction;
+    placedShips = placedShips.filter((entry) => entry.id !== ship.id);
     placedShips.push({ id: ship.id, cells: candidate.cells });
     const next = FLEET.find((entry) => !placedShips.some((shipEntry) => shipEntry.id === entry.id));
     selectedShipId = next ? next.id : selectedShipId;
