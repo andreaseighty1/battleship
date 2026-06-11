@@ -28,7 +28,8 @@
     destroyer: assetUrl('gfx/ship_2_squares_v1.png')
   };
   const TITLE_IMAGE = assetUrl('gfx/battleship_logo_swe.png');
-  const OWL_LOGO = assetUrl('gfx/42-improbable-owls-logo.svg');
+  const OWL_LOGO = assetUrl('gfx/42io-seal-light.svg');
+  const OWL_SEAL_LOGO = assetUrl('gfx/42io-seal-light.svg');
   const MUSIC_ASSETS = {
     title: assetUrl('sounds/battleship_title.mp3'),
     battle: assetUrl('sounds/battleship_battle.mp3')
@@ -823,9 +824,9 @@
     app.innerHTML = `
       <header class="topbar ${gameTopbarClass} ${mobileTopbarClass} ${statusTopbarClass}">
         <div class="brand">
-          <div class="brand-mark" aria-hidden="true"></div>
+          <img class="brand-logo" src="${OWL_SEAL_LOGO}" alt="42 Improbable Owls">
           <div>
-            <h1>BattleShip Arcade</h1>
+            <h1>Sänka Skepp</h1>
             <p>${state ? escapeHtml(state.playerName) : 'Online sänka skepp'}</p>
           </div>
         </div>
@@ -899,7 +900,6 @@
         <div class="hero-board title-board" aria-hidden="true">
           <img class="title-logo" src="${TITLE_IMAGE}" alt="">
           <div class="title-waterline"></div>
-          <div class="hero-hit"></div>
         </div>
       </section>
     `;

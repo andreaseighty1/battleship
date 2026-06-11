@@ -1,4 +1,4 @@
-# BattleShip Arcade
+# Sänka Skepp
 
 Ett online-sänka-skepp-spel med lobbykod, backend, klassiska koordinater och placeholder-grafik.
 

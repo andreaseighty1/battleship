@@ -1,0 +1,51 @@
+<svg width="320" height="320" viewBox="0 0 320 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <path id="outerRingL" d="M 160,12 a 148,148 0 1,1 -0.1,0 Z"></path>
+    <clipPath id="sealBodyL">
+      <ellipse cx="160" cy="171" rx="52" ry="57"></ellipse>
+    </clipPath>
+  </defs>
+  <circle cx="160" cy="160" r="150" stroke="#09090f" stroke-width="1.5" fill="none" opacity="0.5"></circle>
+  <circle cx="160" cy="160" r="143" stroke="#09090f" stroke-width="0.6" fill="none" opacity="0.2"></circle>
+  <g stroke="#09090f" stroke-width="1" opacity="0.2">
+    <line x1="160" y1="10" x2="160" y2="18"></line>
+    <line x1="160" y1="302" x2="160" y2="310"></line>
+    <line x1="10" y1="160" x2="18" y2="160"></line>
+    <line x1="302" y1="160" x2="310" y2="160"></line>
+    <line x1="54" y1="54" x2="59.5" y2="59.5"></line>
+    <line x1="260.5" y1="59.5" x2="266" y2="54"></line>
+    <line x1="54" y1="266" x2="59.5" y2="260.5"></line>
+    <line x1="260.5" y1="260.5" x2="266" y2="266"></line>
+  </g>
+  <text font-family="&#39;DM Sans&#39;,sans-serif" font-size="11.5" font-weight="500" fill="#09090f" letter-spacing="6" opacity="0.8">
+    <textPath href="#outerRingL" startOffset="6%">42 · IMPROBABLE OWLS ·</textPath>
+  </text>
+  <circle cx="160" cy="160" r="122" stroke="#09090f" stroke-width="1" fill="none" opacity="0.15"></circle>
+  <circle cx="160" cy="52" r="3" fill="#C41E3A"></circle>
+  <polyline points="140,70 152,58 160,70 168,58 180,70" stroke="#C41E3A" stroke-width="3.5" fill="none" stroke-linejoin="round" stroke-linecap="round"></polyline>
+  <polygon points="118,112 132,88 148,108" fill="#09090f"></polygon>
+  <polygon points="202,112 188,88 172,108" fill="#09090f"></polygon>
+  <ellipse cx="160" cy="168" rx="62" ry="68" fill="#09090f"></ellipse>
+  <ellipse cx="160" cy="171" rx="52" ry="57" fill="#ede8de"></ellipse>
+  <g clip-path="url(#sealBodyL)">
+    <polygon points="118,228 108,228 113,208" fill="#09090f" opacity="0.14"></polygon>
+    <polygon points="142,228 130,228 136,202" fill="#09090f" opacity="0.14"></polygon>
+    <polygon points="168,228 156,228 162,200" fill="#09090f" opacity="0.14"></polygon>
+    <polygon points="194,228 182,228 188,208" fill="#09090f" opacity="0.14"></polygon>
+  </g>
+  <circle cx="138" cy="152" r="15" fill="#ede8de"></circle>
+  <circle cx="138" cy="152" r="9" fill="#09090f"></circle>
+  <circle cx="141" cy="149" r="3.2" fill="#ede8de"></circle>
+  <circle cx="182" cy="152" r="15" fill="#ede8de"></circle>
+  <circle cx="182" cy="152" r="9" fill="#09090f"></circle>
+  <circle cx="185" cy="149" r="3.2" fill="#ede8de"></circle>
+  <circle cx="182" cy="152" r="19.5" fill="none" stroke="#C41E3A" stroke-width="2"></circle>
+  <path d="M199,162 Q204,170 206,178" stroke="#C41E3A" stroke-width="1.3" fill="none" stroke-linecap="round"></path>
+  <circle cx="207" cy="179" r="1.8" fill="#C41E3A"></circle>
+  <polygon points="154,163 160,171 166,163" fill="#b89a5a"></polygon>
+  <text x="160" y="210" font-family="Georgia,serif" font-size="30" font-weight="700" fill="#09090f" text-anchor="middle" opacity="0.85">42</text>
+  <path d="M160,38 L163,42 L160,46 L157,42 Z" fill="#C41E3A" opacity="0.7"></path>
+  <path d="M160,274 L163,278 L160,282 L157,278 Z" fill="#C41E3A" opacity="0.7"></path>
+  <path d="M38,160 L42,163 L46,160 L42,157 Z" fill="#C41E3A" opacity="0.7"></path>
+  <path d="M274,160 L278,163 L282,160 L278,157 Z" fill="#C41E3A" opacity="0.7"></path>
+</svg>
