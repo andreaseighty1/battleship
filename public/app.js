@@ -105,6 +105,7 @@
   let nowMs = Date.now();
   let clockTimer = null;
   let uiAudioContext = null;
+  let animatedImpactKeys = new Set();
   const musicPlayers = {};
   const unavailableAudio = new Set();
 
@@ -791,6 +792,7 @@
     hoverCell = null;
     selectedShipId = FLEET[0].id;
     orientation = 'horizontal';
+    animatedImpactKeys = new Set();
   }
 
   function statusLabel() {
@@ -808,8 +810,9 @@
     if (state && !hasArcadePowers()) {
       selectedAbility = 'shot';
     }
+    const gameTopbarClass = state && state.status === 'playing' ? 'is-game-topbar' : '';
     app.innerHTML = `
-      <header class="topbar">
+      <header class="topbar ${gameTopbarClass}">
         <div class="brand">
           <div class="brand-mark" aria-hidden="true"></div>
           <div>
@@ -957,7 +960,10 @@
           ${locked ? renderTimePanel() : ''}
           <div class="fleet-list fleet-dock">${FLEET.map(renderShipButton).join('')}</div>
           <div class="toolbar placement-toolbar">
-            <button class="btn" data-action="rotate" type="button" ${locked ? 'disabled' : ''}>Rotera ${orientation === 'horizontal' ? '->' : '^'}</button>
+            <div class="segmented direction-toggle" role="group" aria-label="Riktning">
+              <button class="${orientation === 'horizontal' ? 'is-active' : ''}" data-action="orientation" data-orientation="horizontal" type="button" title="Vågrätt" aria-label="Vågrätt" ${locked ? 'disabled' : ''}>↔</button>
+              <button class="${orientation === 'vertical' ? 'is-active' : ''}" data-action="orientation" data-orientation="vertical" type="button" title="Lodrätt" aria-label="Lodrätt" ${locked ? 'disabled' : ''}>↕</button>
+            </div>
             <button class="btn" data-action="auto-place" type="button" ${locked ? 'disabled' : ''}>Auto</button>
             <button class="btn" data-action="clear-place" type="button" ${locked ? 'disabled' : ''}>Rensa</button>
             <button class="btn primary" data-action="ready" type="button" ${canReady && !locked ? '' : 'disabled'}>Redo</button>
@@ -1219,7 +1225,8 @@
     const classes = ['cell', `is-${type}-cell`];
     let content = '';
     let disabled = true;
-    const attrs = `data-x="${x}" data-y="${y}"`;
+    const coord = coordinateLabel(x, y);
+    const attrs = `data-x="${x}" data-y="${y}" data-coord="${coord}" aria-label="${coord}"`;
     const gridStyle = `style="grid-column: ${x + 1}; grid-row: ${y + 1};"`;
 
     if (type === 'placement') {
@@ -1238,6 +1245,7 @@
       if (incoming) {
         classes.push(incoming.result === 'hit' ? 'is-hit' : 'is-miss');
         if (incoming.sunkShipId) classes.push('is-sunk');
+        content += renderImpactPop(incoming.result, type, x, y);
       }
     }
 
@@ -1248,6 +1256,7 @@
       if (outgoing) {
         classes.push(outgoing.result === 'hit' ? 'is-hit' : 'is-miss');
         if (outgoing.sunkShipId) classes.push('is-sunk');
+        content += renderImpactPop(outgoing.result, type, x, y);
       }
       if (scan.center && !outgoing) {
         content = `<span class="scan-count">${scan.center.count}</span>`;
@@ -1255,7 +1264,26 @@
       disabled = !(state.status === 'playing' && state.turn && state.turn.isYou);
     }
 
-    return `<button class="${classes.join(' ')}" ${attrs} ${gridStyle} data-cell="${type}" type="button" ${disabled ? 'disabled' : ''}>${content}</button>`;
+    return `<button class="${classes.join(' ')}" ${attrs} ${gridStyle} data-cell="${type}" type="button" ${disabled ? 'disabled' : ''}>${content}<span class="coord-pop" aria-hidden="true">${coord}</span></button>`;
+  }
+
+  function coordinateLabel(x, y) {
+    return `${String.fromCharCode(65 + x)}${y + 1}`;
+  }
+
+  function renderImpactPop(result, type, x, y) {
+    const key = `${state && state.code ? state.code : 'local'}:${type}:${x}:${y}:${result}`;
+    if (animatedImpactKeys.has(key)) {
+      return '';
+    }
+    animatedImpactKeys.add(key);
+    if (result === 'hit') {
+      return '<span class="impact-pop hit-pop" aria-hidden="true"></span>';
+    }
+    if (result === 'miss') {
+      return '<span class="impact-pop miss-pop" aria-hidden="true"></span>';
+    }
+    return '';
   }
 
   function shotAt(shots, x, y) {
@@ -1321,12 +1349,7 @@
   }
 
   function placementCandidate(cell, ship) {
-    const primary = placementCandidateForDirection(cell, ship, orientation);
-    if (primary) {
-      return primary;
-    }
-    const fallbackDirection = orientation === 'horizontal' ? 'vertical' : 'horizontal';
-    return placementCandidateForDirection(cell, ship, fallbackDirection);
+    return placementCandidateForDirection(cell, ship, orientation);
   }
 
   function placementCandidateForDirection(cell, ship, direction) {
@@ -1550,7 +1573,7 @@
       return;
     }
     if (selectedShipId === shipId) {
-      rotateOrientation();
+      playUiSound('select');
       return;
     }
     selectedShipId = shipId;
