@@ -1205,10 +1205,10 @@
     const rows = [];
     const overlays = renderShipOverlays(type);
     for (let y = 0; y < BOARD_SIZE; y += 1) {
-      rows.push(`<span class="axis-label">${y + 1}</span>`);
+      rows.push(`<span class="axis-label">${String.fromCharCode(65 + y)}</span>`);
       for (let x = 0; x < BOARD_SIZE; x += 1) {
         if (y === 0) {
-          columns.push(`<span class="axis-label">${String.fromCharCode(65 + x)}</span>`);
+          columns.push(`<span class="axis-label">${x + 1}</span>`);
         }
         cells.push(renderCell(type, x, y));
       }
@@ -1287,7 +1287,8 @@
       if (incoming) {
         classes.push(incoming.result === 'hit' ? 'is-hit' : 'is-miss');
         if (incoming.sunkShipId) classes.push('is-sunk');
-        content += renderImpactPop(incoming.result, type, x, y);
+        content += renderImpactPop(incoming.result, type, x, y, classes);
+        if (incoming.sunkShipId) content += renderSunkBadge(incoming.sunkShipName);
       }
     }
 
@@ -1298,7 +1299,8 @@
       if (outgoing) {
         classes.push(outgoing.result === 'hit' ? 'is-hit' : 'is-miss');
         if (outgoing.sunkShipId) classes.push('is-sunk');
-        content += renderImpactPop(outgoing.result, type, x, y);
+        content += renderImpactPop(outgoing.result, type, x, y, classes);
+        if (outgoing.sunkShipId) content += renderSunkBadge(outgoing.sunkShipName);
       }
       if (scan.center && !outgoing) {
         content = `<span class="scan-count">${scan.center.count}</span>`;
@@ -1310,15 +1312,18 @@
   }
 
   function coordinateLabel(x, y) {
-    return `${String.fromCharCode(65 + x)}${y + 1}`;
+    return `${String.fromCharCode(65 + y)}${x + 1}`;
   }
 
-  function renderImpactPop(result, type, x, y) {
+  function renderImpactPop(result, type, x, y, classes) {
     const key = `${state && state.code ? state.code : 'local'}:${type}:${x}:${y}:${result}`;
     if (animatedImpactKeys.has(key)) {
       return '';
     }
     animatedImpactKeys.add(key);
+    if (Array.isArray(classes)) {
+      classes.push('is-impacting');
+    }
     if (result === 'hit') {
       return '<span class="impact-pop hit-pop" aria-hidden="true"></span>';
     }
@@ -1326,6 +1331,11 @@
       return '<span class="impact-pop miss-pop" aria-hidden="true"></span>';
     }
     return '';
+  }
+
+  function renderSunkBadge(shipName) {
+    const label = shipName ? `Sänkt: ${shipName}` : 'Sänkt skepp';
+    return `<span class="sunk-badge" aria-hidden="true" title="${escapeHtml(label)}">SÄNKT</span>`;
   }
 
   function shotAt(shots, x, y) {

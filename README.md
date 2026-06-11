@@ -33,7 +33,7 @@ npm.cmd test
 - Andra spelaren anger koden för att gå med.
 - Rumskoden gäller i 5 minuter. Om ingen ansluter går rummet ut.
 - Båda placerar fem klassiska skepp manuellt eller med auto-placering.
-- Spelplanerna visar klassiska koordinater: A-J och 1-10.
+- Spelplanerna visar klassiska koordinater: A-J som rader och 1-10 som kolumner.
 - Skaparen väljer Classic eller Arcade när rummet skapas.
 - När båda är redo startar matchen.
 - En match kan som längst pågå i 48 timmar från att rummet skapas. Därefter avslutas den utan highscore.

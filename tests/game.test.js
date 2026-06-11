@@ -101,6 +101,25 @@ test('hit keeps turn and miss passes it', () => {
   assert.ok(host.game.turnStartedAt > 1000);
 });
 
+test('marks all hit cells when a ship is sunk', () => {
+  const store = new Map();
+  const host = createGame('Ada', store);
+  const guest = joinGame(host.code, 'Bo', store);
+  placeFleet(host.code, host.playerId, fleetFromRows(0), store);
+  const guestFleet = fleetFromRows(5);
+  placeFleet(host.code, guest.playerId, guestFleet, store);
+
+  const destroyer = guestFleet.find((ship) => ship.id === 'destroyer');
+  for (const cell of destroyer.cells) {
+    performAction(host.code, host.playerId, { ability: 'shot', x: cell.x, y: cell.y }, store);
+  }
+
+  const hostState = serializeGame(host.game, host.playerId);
+  const sunkHits = hostState.target.outgoingShots.filter((shot) => shot.sunkShipId === destroyer.id);
+  assert.equal(sunkHits.length, destroyer.cells.length);
+  assert.ok(sunkHits.every((shot) => shot.sunkShipName === 'Jagare'));
+});
+
 test('expires games after forty-eight hours without recording a score', () => {
   const store = new Map();
   const host = createGame('Ada', store);

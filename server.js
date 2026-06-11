@@ -533,6 +533,19 @@ function isShipSunkByShots(shots, ship) {
   return ship.cells.every((cell) => shots.some((shot) => shot.x === cell.x && shot.y === cell.y && shot.result === 'hit'));
 }
 
+function markSunkShipShots(shots, ship) {
+  if (!Array.isArray(shots) || !ship || !Array.isArray(ship.cells)) {
+    return;
+  }
+  const shipCells = new Set(ship.cells.map((cell) => `${cell.x},${cell.y}`));
+  shots.forEach((shot) => {
+    if (shot.result === 'hit' && shipCells.has(`${shot.x},${shot.y}`)) {
+      shot.sunkShipId = ship.id;
+      shot.sunkShipName = ship.name;
+    }
+  });
+}
+
 function isFleetSunkBy(game, attackerId, defender) {
   const shots = game.shotsByPlayer[attackerId] || [];
   return Boolean(defender.ships && defender.ships.every((ship) => isShipSunkByShots(shots, ship)));
@@ -558,8 +571,7 @@ function resolveSingleShot(game, attacker, defender, x, y, source) {
     game.shotsByPlayer[attacker.id].push(shot);
     const sunk = isShipSunkByShots(game.shotsByPlayer[attacker.id], ship);
     if (sunk) {
-      shot.sunkShipId = ship.id;
-      shot.sunkShipName = ship.name;
+      markSunkShipShots(game.shotsByPlayer[attacker.id], ship);
       if (settings.abilities) {
         addEnergy(attacker, 3);
       }
@@ -576,7 +588,7 @@ function resolveSingleShot(game, attacker, defender, x, y, source) {
 }
 
 function formatCell(x, y) {
-  return `${String.fromCharCode(65 + x)}${y + 1}`;
+  return `${String.fromCharCode(65 + y)}${x + 1}`;
 }
 
 function finishGame(game, winner) {
