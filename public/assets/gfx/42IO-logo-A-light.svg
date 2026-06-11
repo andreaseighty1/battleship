@@ -1,0 +1,39 @@
+<svg width="280" height="356" viewBox="0 0 280 356" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="140" cy="8" r="4.5" fill="#C41E3A"></circle>
+  <polyline points="76,46 108,20 140,46 172,20 204,46" stroke="#C41E3A" stroke-width="5.5" fill="none" stroke-linejoin="round" stroke-linecap="round"></polyline>
+  <polyline points="90,57 115,40 140,57 165,40 190,57" stroke="#C41E3A" stroke-width="3.2" fill="none" stroke-linejoin="round" stroke-linecap="round" opacity="0.5"></polyline>
+  <polygon points="46,115 76,66 120,107" fill="#09090f"></polygon>
+  <polygon points="234,115 204,66 160,107" fill="#09090f"></polygon>
+  <polygon points="40,128 2,192 38,176" fill="#09090f"></polygon>
+  <polygon points="240,128 278,192 242,176" fill="#09090f"></polygon>
+  <ellipse cx="140" cy="192" rx="104" ry="114" fill="#09090f"></ellipse>
+  <ellipse cx="140" cy="197" rx="88" ry="97" fill="#ede8de"></ellipse>
+  <defs>
+    <clipPath id="innerAL">
+      <ellipse cx="140" cy="197" rx="88" ry="97"></ellipse>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#innerAL)">
+    <polygon points="52,295 92,252 118,267 150,238 178,260 214,250 240,295" fill="#09090f" opacity="0.06"></polygon>
+    <polygon points="88,295 72,295 80,254" fill="#09090f" opacity="0.14"></polygon>
+    <polygon points="116,295 98,295 107,247" fill="#09090f" opacity="0.14"></polygon>
+    <polygon points="148,295 128,295 138,242" fill="#09090f" opacity="0.14"></polygon>
+    <polygon points="178,295 158,295 168,247" fill="#09090f" opacity="0.14"></polygon>
+    <polygon points="203,295 188,295 195.5,254" fill="#09090f" opacity="0.14"></polygon>
+  </g>
+  <circle cx="108" cy="168" r="23" fill="#ede8de"></circle>
+  <circle cx="108" cy="168" r="14" fill="#09090f"></circle>
+  <circle cx="112" cy="164" r="5" fill="#ede8de"></circle>
+  <circle cx="172" cy="168" r="23" fill="#ede8de"></circle>
+  <circle cx="172" cy="168" r="14" fill="#09090f"></circle>
+  <circle cx="176" cy="164" r="5" fill="#ede8de"></circle>
+  <circle cx="172" cy="168" r="29.5" fill="none" stroke="#C41E3A" stroke-width="2.8"></circle>
+  <path d="M198,183 Q206,196 209,210" stroke="#C41E3A" stroke-width="1.8" fill="none" stroke-linecap="round"></path>
+  <circle cx="210" cy="212" r="2.8" fill="#C41E3A"></circle>
+  <polygon points="132,182 140,194 148,182" fill="#b89a5a"></polygon>
+  <text x="140" y="248" font-family="Georgia,serif" font-size="52" font-weight="700" fill="#09090f" text-anchor="middle" opacity="0.88">42</text>
+  <line x1="32" y1="320" x2="90" y2="320" stroke="#C41E3A" stroke-width="1.2"></line>
+  <line x1="190" y1="320" x2="248" y2="320" stroke="#C41E3A" stroke-width="1.2"></line>
+  <text x="140" y="316" font-family="&#39;DM Sans&#39;,sans-serif" font-size="11.5" font-weight="500" fill="#09090f" text-anchor="middle" letter-spacing="5">IMPROBABLE OWLS</text>
+  
+</svg>

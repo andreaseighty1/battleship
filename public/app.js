@@ -28,8 +28,8 @@
     destroyer: assetUrl('gfx/ship_2_squares_v1.png')
   };
   const TITLE_IMAGE = assetUrl('gfx/battleship_logo_swe.png');
-  const OWL_LOGO = assetUrl('gfx/42-improbable-owls-logo.svg');
-  const OWL_SEAL_LOGO = assetUrl('gfx/42io-mark-light.svg');
+  const OWL_LOGO = assetUrl('gfx/42IO-logo-A-light.svg');
+  const OWL_SEAL_LOGO = assetUrl('gfx/42IO-logo-A-light.svg');
   const MUSIC_ASSETS = {
     title: assetUrl('sounds/battleship_title.mp3'),
     battle: assetUrl('sounds/battleship_battle.mp3')
