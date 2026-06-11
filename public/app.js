@@ -96,6 +96,7 @@
   let selectedAbility = 'shot';
   let selectedMode = 'arcade';
   let activePage = 'home';
+  let mobileInfoOpen = false;
   let playerNameDraft = readPlayerName();
   let toastTimer = null;
   let scores = [];
@@ -603,14 +604,14 @@
       return '';
     }
     const remaining = remainingUntil(activeExpiresAt());
-    const elapsed = matchElapsedMs();
+    const elapsed = state.status === 'playing' ? turnElapsedMs() : matchElapsedMs();
     const lobbyTimer = usesLobbyTimer();
-    const elapsedLabel = lobbyTimer ? 'Kod' : 'Tid';
+    const elapsedLabel = state.status === 'playing' ? 'Tur' : (lobbyTimer ? 'Kod' : 'Tid');
     const remainingLabel = lobbyTimer ? 'Koden kvar' : 'Kvar';
     const warningAt = lobbyTimer ? 60 * 1000 : 60 * 60 * 1000;
     return `
-      <span class="chip time-chip">${escapeHtml(elapsedLabel)} ${escapeHtml(formatDuration(elapsed))}</span>
-      <span class="chip time-chip ${remaining <= warningAt ? 'is-warning' : ''}">${escapeHtml(remainingLabel)} ${escapeHtml(formatDuration(remaining))}</span>
+      <span class="chip time-chip elapsed-chip">${escapeHtml(elapsedLabel)} ${escapeHtml(formatDuration(elapsed))}</span>
+      <span class="chip time-chip remaining-chip ${remaining <= warningAt ? 'is-warning' : ''}">${escapeHtml(remainingLabel)} ${escapeHtml(formatDuration(remaining))}</span>
     `;
   }
 
@@ -813,9 +814,14 @@
     if (state && !hasArcadePowers()) {
       selectedAbility = 'shot';
     }
+    if (!state || state.status !== 'playing') {
+      mobileInfoOpen = false;
+    }
     const gameTopbarClass = state && state.status === 'playing' ? 'is-game-topbar' : '';
+    const mobileTopbarClass = state && (state.status === 'placing' || state.status === 'playing') ? 'is-mobile-topbar' : '';
+    const statusTopbarClass = state ? `is-status-${state.status}` : '';
     app.innerHTML = `
-      <header class="topbar ${gameTopbarClass}">
+      <header class="topbar ${gameTopbarClass} ${mobileTopbarClass} ${statusTopbarClass}">
         <div class="brand">
           <div class="brand-mark" aria-hidden="true"></div>
           <div>
@@ -824,15 +830,15 @@
           </div>
         </div>
         <div class="room-strip">
-          ${state ? `<span class="chip">Kod <strong>${escapeHtml(state.code)}</strong></span>` : ''}
-          ${state ? `<span class="chip">${escapeHtml(modeLabel(state.mode))}</span>` : ''}
-          <span class="chip ${state && state.status === 'playing' ? 'is-live' : ''}">${escapeHtml(statusLabel())}</span>
+          ${state ? `<span class="chip code-chip">Kod <strong>${escapeHtml(state.code)}</strong></span>` : ''}
+          ${state ? `<span class="chip mode-chip">${escapeHtml(modeLabel(state.mode))}</span>` : ''}
+          <span class="chip status-chip ${state && state.status === 'playing' ? 'is-live' : ''}">${escapeHtml(statusLabel())}</span>
           ${renderTimeChips()}
-          ${state && state.turn ? `<span class="chip ${state.turn.isYou ? 'is-turn' : ''}">${escapeHtml(state.turn.playerName)}</span>` : ''}
+          ${state && state.turn ? `<span class="chip turn-chip ${state.turn.isYou ? 'is-turn' : ''}">${escapeHtml(state.turn.playerName)}</span>` : ''}
           ${!state && activePage !== 'scores' ? '<button class="btn ghost" data-action="show-scores" type="button">Topplista</button>' : ''}
           ${!state && activePage === 'scores' ? '<button class="btn ghost" data-action="show-home" type="button">Start</button>' : ''}
           <button class="btn ghost audio-toggle" data-action="toggle-audio" type="button" aria-pressed="${audioEnabled ? 'true' : 'false'}">${audioEnabled ? 'Ljud på' : 'Ljud av'}</button>
-          ${state ? '<button class="btn ghost" data-action="leave">Lämna</button>' : ''}
+          ${state ? '<button class="btn ghost leave-button" data-action="leave">Lämna</button>' : ''}
         </div>
       </header>
       <main class="screen">
@@ -1001,8 +1007,18 @@
             <span class="chip">${locked ? 'Låst' : `${placedShips.length}/${FLEET.length}`}</span>
           </div>
           ${renderBoard('placement')}
+          ${renderPlacementFloatControls(locked)}
         </div>
       </section>
+    `;
+  }
+
+  function renderPlacementFloatControls(locked) {
+    return `
+      <div class="placement-float-controls" aria-label="Placeringskontroller">
+        <button class="float-control rotate-control" data-action="rotate" type="button" title="Rotera skepp" aria-label="Rotera skepp" ${locked ? 'disabled' : ''}>↻</button>
+        <span class="float-orientation" aria-hidden="true">${orientation === 'horizontal' ? '↔' : '↕'}</span>
+      </div>
     `;
   }
 
@@ -1010,21 +1026,29 @@
     const finished = state.status === 'finished';
     return `
       <section class="game-grid">
-        <div class="panel board-wrap">
+        <div class="panel board-wrap own-board-panel">
           <div class="board-title">
             <h2>Din flotta</h2>
             ${hasArcadePowers() ? `<span class="chip">${escapeHtml(state.own.energy)} energi</span>` : `<span class="chip">${escapeHtml(modeLabel(state.mode))}</span>`}
           </div>
           ${renderBoard('own')}
         </div>
-        <div class="panel board-wrap">
+        <div class="panel board-wrap target-board-panel">
           <div class="board-title">
             <h2>${escapeHtml(state.target.opponentName || 'Motståndare')}</h2>
-            <span class="chip ${state.turn && state.turn.isYou ? 'is-turn' : ''}">${finished ? escapeHtml(state.winner.playerName) : escapeHtml(statusLabel())}</span>
+            <div class="board-title-actions">
+              <span class="chip ${state.turn && state.turn.isYou ? 'is-turn' : ''}">${finished ? escapeHtml(state.winner.playerName) : escapeHtml(statusLabel())}</span>
+              <button class="btn ghost mobile-info-toggle" data-action="toggle-mobile-info" type="button" aria-expanded="${mobileInfoOpen ? 'true' : 'false'}">Info</button>
+            </div>
           </div>
           ${renderBoard('target')}
         </div>
-        <aside class="panel side-panel">
+        <div class="mobile-info-scrim ${mobileInfoOpen ? 'is-open' : ''}" data-action="close-mobile-info" aria-hidden="true"></div>
+        <aside class="panel side-panel ${mobileInfoOpen ? 'is-open' : ''}">
+          <div class="side-panel-header">
+            <h2>Matchinfo</h2>
+            <button class="btn ghost side-close" data-action="close-mobile-info" type="button">Stäng</button>
+          </div>
           ${renderWaitingTurnCard()}
           ${renderTimePanel()}
           ${renderOutcome()}
@@ -1034,6 +1058,10 @@
           ${renderPlayers()}
           <h3 style="margin-top: 16px;">Logg</h3>
           ${renderLog()}
+          <div class="mobile-side-actions">
+            <button class="btn ghost audio-toggle" data-action="toggle-audio" type="button" aria-pressed="${audioEnabled ? 'true' : 'false'}">${audioEnabled ? 'Ljud på' : 'Ljud av'}</button>
+            <button class="btn ghost leave-button" data-action="leave" type="button">Lämna</button>
+          </div>
         </aside>
       </section>
     `;
@@ -1560,6 +1588,8 @@
     if (action === 'show-scores') return showScoresPage();
     if (action === 'show-home') return showHomePage();
     if (action === 'refresh-scores') return refreshScoresPage();
+    if (action === 'toggle-mobile-info') return toggleMobileInfo();
+    if (action === 'close-mobile-info') return closeMobileInfo();
     if (action === 'select-ship') return selectShip(event.currentTarget.dataset.ship);
     if (action === 'orientation') return setOrientation(event.currentTarget.dataset.orientation);
     if (action === 'rotate') return rotateOrientation();
@@ -1589,6 +1619,20 @@
     playUiSound('click');
     await loadScores();
     render();
+  }
+
+  function toggleMobileInfo() {
+    mobileInfoOpen = !mobileInfoOpen;
+    playUiSound('click');
+    render();
+  }
+
+  function closeMobileInfo() {
+    if (mobileInfoOpen) {
+      mobileInfoOpen = false;
+      playUiSound('click');
+      render();
+    }
   }
 
   function updatePlacementHover(cell) {
@@ -1631,6 +1675,7 @@
     storage.clear();
     state = null;
     activePage = 'home';
+    mobileInfoOpen = false;
     selectedAbility = 'shot';
     resetLocalPlacement();
     render();
