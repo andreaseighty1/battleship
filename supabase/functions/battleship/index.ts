@@ -6,6 +6,7 @@ const BARRAGE_COST = 5;
 const MAX_ENERGY = 9;
 const LOBBY_TTL_MS = 5 * 60 * 1000;
 const GAME_TTL_MS = 48 * 60 * 60 * 1000;
+const SCORE_LIMIT = 50;
 const DEFAULT_MODE = 'arcade';
 const GAME_MODES = Object.freeze({
   classic: Object.freeze({
@@ -327,7 +328,7 @@ async function getHighScores(): Promise<any[]> {
     .order('duration_ms', { ascending: true })
     .order('shots', { ascending: true })
     .order('finished_at', { ascending: true })
-    .limit(10);
+    .limit(SCORE_LIMIT);
   if (error && error.message.includes('mode')) {
     const fallback = await admin!
       .from('battleship_scores')
@@ -335,7 +336,7 @@ async function getHighScores(): Promise<any[]> {
       .order('duration_ms', { ascending: true })
       .order('shots', { ascending: true })
       .order('finished_at', { ascending: true })
-      .limit(10);
+      .limit(SCORE_LIMIT);
     data = fallback.data;
     error = fallback.error;
   }

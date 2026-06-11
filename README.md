@@ -43,7 +43,7 @@ npm.cmd test
 - Sonar kostar energi och visar hur många skeppsdelar som finns i ett 3x3-område i Arcade.
 - Barrage kostar mer energi och skjuter ett kors med upp till fem rutor i Arcade.
 - Spelet räknar skott, träffar, missar och precision per match.
-- Topplistan rankar snabbast vunna matcher och visar mode, skott, träffar och missar.
+- Topplistan finns som separat vy, rankar snabbast vunna matcher och visar mode, tid, skott, träffar, missar och precision.
 - Spelarnamn filtreras i backend med en enkel svensk/engelsk profanity-lista.
 
 Matcher och topplista sparas i minnet i den lokala backend-processen. Startas servern om försvinner aktiva rum och lokala scoreposter.

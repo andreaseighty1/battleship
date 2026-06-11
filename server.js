@@ -44,7 +44,7 @@ const FLEET = Object.freeze([
 const games = new Map();
 const subscribers = new Map();
 const highScores = [];
-const SCORE_LIMIT = 10;
+const SCORE_LIMIT = 50;
 const PROFANITY_TERMS = Object.freeze([
   'fuck',
   'fucker',

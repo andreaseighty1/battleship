@@ -72,6 +72,8 @@
   };
   const AUDIO_SETTING_KEY = 'battleship-audio';
   const PLAYER_NAME_KEY = 'battleship-player-name';
+  const SCORE_PREVIEW_LIMIT = 5;
+  const SCORE_PAGE_LIMIT = 50;
   const COPYRIGHT_NOTICE = '© 2026 Andreas Jonsson & 42 Improbable Owls';
 
   const app = document.querySelector('#app');
@@ -93,6 +95,7 @@
   let hoverCell = null;
   let selectedAbility = 'shot';
   let selectedMode = 'arcade';
+  let activePage = 'home';
   let playerNameDraft = readPlayerName();
   let toastTimer = null;
   let scores = [];
@@ -796,7 +799,7 @@
   }
 
   function statusLabel() {
-    if (!state) return 'Start';
+    if (!state) return activePage === 'scores' ? 'Topplista' : 'Start';
     if (state.status === 'waiting') return 'Väntar';
     if (state.status === 'placing') return 'Placering';
     if (state.status === 'playing') return state.turn && state.turn.isYou ? 'Din tur' : 'Motståndarens tur';
@@ -826,6 +829,8 @@
           <span class="chip ${state && state.status === 'playing' ? 'is-live' : ''}">${escapeHtml(statusLabel())}</span>
           ${renderTimeChips()}
           ${state && state.turn ? `<span class="chip ${state.turn.isYou ? 'is-turn' : ''}">${escapeHtml(state.turn.playerName)}</span>` : ''}
+          ${!state && activePage !== 'scores' ? '<button class="btn ghost" data-action="show-scores" type="button">Topplista</button>' : ''}
+          ${!state && activePage === 'scores' ? '<button class="btn ghost" data-action="show-home" type="button">Start</button>' : ''}
           <button class="btn ghost audio-toggle" data-action="toggle-audio" type="button" aria-pressed="${audioEnabled ? 'true' : 'false'}">${audioEnabled ? 'Ljud på' : 'Ljud av'}</button>
           ${state ? '<button class="btn ghost" data-action="leave">Lämna</button>' : ''}
         </div>
@@ -847,7 +852,7 @@
 
   function renderScreen() {
     if (!state) {
-      return renderHome();
+      return activePage === 'scores' ? renderScoresPage() : renderHome();
     }
     if (state.status === 'waiting') {
       return renderWaiting();
@@ -881,13 +886,34 @@
           </form>
           <div>
             <h2>Topplista</h2>
-            ${renderScoreList()}
+            ${renderScoreList(SCORE_PREVIEW_LIMIT, 'compact')}
+            <button class="btn ghost score-link" data-action="show-scores" type="button">Visa hela topplistan</button>
           </div>
         </div>
         <div class="hero-board title-board" aria-hidden="true">
           <img class="title-logo" src="${TITLE_IMAGE}" alt="">
           <div class="title-waterline"></div>
           <div class="hero-hit"></div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderScoresPage() {
+    return `
+      <section class="scores-page">
+        <div class="panel scores-panel">
+          <div class="scores-header">
+            <div>
+              <h2>Topplista</h2>
+              <span>${scores.length ? `${Math.min(scores.length, SCORE_PAGE_LIMIT)} bästa matcher` : 'Inga matcher ännu'}</span>
+            </div>
+            <div class="toolbar scores-toolbar">
+              <button class="btn ghost" data-action="refresh-scores" type="button">Uppdatera</button>
+              <button class="btn primary" data-action="show-home" type="button">Till start</button>
+            </div>
+          </div>
+          ${renderScoreList(SCORE_PAGE_LIMIT, 'full')}
         </div>
       </section>
     `;
@@ -1004,8 +1030,6 @@
           ${renderOutcome()}
           ${renderPowerPanel()}
           ${renderStatsPanel()}
-          <h3>Topplista</h3>
-          ${renderScoreList()}
           <h3>Spelare</h3>
           ${renderPlayers()}
           <h3 style="margin-top: 16px;">Logg</h3>
@@ -1131,18 +1155,36 @@
     return `<div class="log-list">${entries.map((entry) => `<div class="log-item" data-type="${escapeHtml(entry.type)}">${escapeHtml(entry.text)}</div>`).join('')}</div>`;
   }
 
-  function renderScoreList() {
+  function renderScoreList(limit = SCORE_PREVIEW_LIMIT, variant = 'compact') {
     if (!scores.length) {
       return '<div class="empty-state compact">Ingen topplista än</div>';
     }
+    const full = variant === 'full';
     return `
-      <div class="score-list">
-        ${scores.slice(0, 5).map((score, index) => `
-          <div class="score-row">
+      <div class="score-list ${full ? 'is-full' : ''}">
+        ${scores.slice(0, limit).map((score, index) => `
+          <div class="score-row ${full ? 'is-full' : ''}">
             <strong>${index + 1}. ${escapeHtml(score.winnerName)}</strong>
             <span>${escapeHtml(modeLabel(score.mode))} · ${formatDuration(score.durationMs)} · ${score.hits}/${score.shots} träff · ${score.misses} miss</span>
+            ${renderScoreMeta(score, full)}
           </div>
         `).join('')}
+      </div>
+    `;
+  }
+
+  function renderScoreMeta(score, full) {
+    if (!full) {
+      return '';
+    }
+    return `
+      <div class="score-meta">
+        <span>${escapeHtml(modeLabel(score.mode))}</span>
+        <span>${escapeHtml(formatDuration(score.durationMs))}</span>
+        <span>${escapeHtml(score.hits)}/${escapeHtml(score.shots)} träff</span>
+        <span>${escapeHtml(score.misses)} miss</span>
+        <span>${escapeHtml(score.accuracy || 0)}%</span>
+        ${score.opponentName ? `<span>mot ${escapeHtml(score.opponentName)}</span>` : ''}
       </div>
     `;
   }
@@ -1457,6 +1499,7 @@
       const data = await api('/api/create', { name, mode: selectedMode });
       storage.set({ backend: backendMode, code: data.code, playerId: data.playerId });
       state = data.state;
+      activePage = 'home';
       resetLocalPlacement();
       playUiSound('ready');
       connectEvents(data.code, data.playerId);
@@ -1482,6 +1525,7 @@
       const data = await api('/api/join', { name, code: form.get('code') });
       storage.set({ backend: backendMode, code: data.code, playerId: data.playerId });
       state = data.state;
+      activePage = 'home';
       resetLocalPlacement();
       playUiSound('ready');
       connectEvents(data.code, data.playerId);
@@ -1503,6 +1547,9 @@
       playUiSound('click');
       return leaveGame();
     }
+    if (action === 'show-scores') return showScoresPage();
+    if (action === 'show-home') return showHomePage();
+    if (action === 'refresh-scores') return refreshScoresPage();
     if (action === 'select-ship') return selectShip(event.currentTarget.dataset.ship);
     if (action === 'orientation') return setOrientation(event.currentTarget.dataset.orientation);
     if (action === 'rotate') return rotateOrientation();
@@ -1513,6 +1560,25 @@
     if (event.currentTarget.dataset.cell === 'placement') return placeSelectedShip(event.currentTarget);
     if (event.currentTarget.dataset.cell === 'target') return targetCell(event.currentTarget);
     return undefined;
+  }
+
+  async function showScoresPage() {
+    playUiSound('click');
+    activePage = 'scores';
+    await loadScores();
+    render();
+  }
+
+  function showHomePage() {
+    playUiSound('click');
+    activePage = 'home';
+    render();
+  }
+
+  async function refreshScoresPage() {
+    playUiSound('click');
+    await loadScores();
+    render();
   }
 
   function updatePlacementHover(cell) {
@@ -1554,6 +1620,7 @@
     disconnectLiveUpdates();
     storage.clear();
     state = null;
+    activePage = 'home';
     selectedAbility = 'shot';
     resetLocalPlacement();
     render();

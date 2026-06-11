@@ -1162,6 +1162,43 @@ button.cell:not(:disabled):hover {
   gap: 8px;
 }
 
+.scores-page {
+  display: grid;
+  gap: 16px;
+}
+
+.scores-panel {
+  width: min(100%, 960px);
+  justify-self: center;
+}
+
+.scores-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.scores-header h2 {
+  margin-bottom: 4px;
+}
+
+.scores-header span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 850;
+}
+
+.scores-toolbar {
+  justify-content: flex-end;
+}
+
+.score-link {
+  width: 100%;
+  margin-top: 8px;
+}
+
 .score-row,
 .score-summary {
   border: 1px solid var(--line);
@@ -1179,6 +1216,37 @@ button.cell:not(:disabled):hover {
 
 .score-row strong {
   overflow-wrap: anywhere;
+}
+
+.score-list.is-full {
+  gap: 10px;
+}
+
+.score-row.is-full {
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr);
+}
+
+.score-row.is-full .score-meta {
+  grid-column: 1 / -1;
+}
+
+.score-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.score-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border: 1px solid rgba(72, 159, 181, 0.28);
+  border-radius: 999px;
+  padding: 0 8px;
+  color: var(--ink);
+  background: rgba(130, 192, 204, 0.12);
+  font-size: 0.78rem;
+  font-weight: 850;
 }
 
 .score-row span,
@@ -1320,6 +1388,19 @@ button.cell:not(:disabled):hover {
     padding: 12px;
   }
 
+  .scores-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .scores-toolbar {
+    justify-content: stretch;
+  }
+
+  .scores-toolbar .btn {
+    flex: 1 1 130px;
+  }
+
   .board-shell {
     width: 100%;
   }
@@ -1455,6 +1536,10 @@ button.cell:not(:disabled):hover {
   .score-row {
     grid-template-columns: 1fr;
     gap: 4px;
+  }
+
+  .score-row.is-full {
+    grid-template-columns: 1fr;
   }
 
   .stat-grid {
