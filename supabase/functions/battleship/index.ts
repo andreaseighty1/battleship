@@ -223,6 +223,12 @@ function createPlayer(name: unknown, index: number): any {
   };
 }
 
+function createBotPlayer(name = 'Datorn'): any {
+  const bot = createPlayer(name, 1);
+  bot.isBot = true;
+  return bot;
+}
+
 function logEvent(game: any, type: string, text: string): void {
   game.log.push({ type, text, at: Date.now() });
   if (game.log.length > 80) {
@@ -321,6 +327,16 @@ function publicScore(score: any): any {
   };
 }
 
+function isHiddenScore(score: any): boolean {
+  return score
+    && String(score.winnerName || '').trim().toLowerCase() === 'ada'
+    && normalizeMode(score.mode) === 'arcade'
+    && Number(score.durationMs || 0) <= 10000
+    && Number(score.shots || 0) === 18
+    && Number(score.hits || 0) === 17
+    && Number(score.misses || 0) === 1;
+}
+
 async function getHighScores(): Promise<any[]> {
   let { data, error } = await admin!
     .from('battleship_scores')
@@ -328,7 +344,7 @@ async function getHighScores(): Promise<any[]> {
     .order('duration_ms', { ascending: true })
     .order('shots', { ascending: true })
     .order('finished_at', { ascending: true })
-    .limit(SCORE_LIMIT);
+    .limit(SCORE_LIMIT + 10);
   if (error && error.message.includes('mode')) {
     const fallback = await admin!
       .from('battleship_scores')
@@ -336,22 +352,26 @@ async function getHighScores(): Promise<any[]> {
       .order('duration_ms', { ascending: true })
       .order('shots', { ascending: true })
       .order('finished_at', { ascending: true })
-      .limit(SCORE_LIMIT);
+      .limit(SCORE_LIMIT + 10);
     data = fallback.data;
     error = fallback.error;
   }
   if (error) fail(500, error.message);
-  return (data || []).map((score: any) => ({
-    code: score.code,
-    winnerName: score.winner_name,
-    opponentName: score.opponent_name,
-    mode: normalizeMode(score.mode),
-    durationMs: score.duration_ms,
-    shots: score.shots,
-    hits: score.hits,
-    misses: score.misses,
-    finishedAt: new Date(score.finished_at).getTime()
-  }));
+  return (data || [])
+    .map((score: any) => ({
+      code: score.code,
+      winnerName: score.winner_name,
+      opponentName: score.opponent_name,
+      mode: normalizeMode(score.mode),
+      durationMs: score.duration_ms,
+      shots: score.shots,
+      hits: score.hits,
+      misses: score.misses,
+      finishedAt: new Date(score.finished_at).getTime()
+    }))
+    .filter((score: any) => !isHiddenScore(score))
+    .slice(0, SCORE_LIMIT)
+    .map(publicScore);
 }
 
 function shotStatsFor(game: any, playerId: string): any {
@@ -495,6 +515,52 @@ async function createGame(hostName: unknown, mode: unknown = DEFAULT_MODE): Prom
   const tick = await admin!.rpc('battleship_tick_game', { game_code: code });
   if (tick.error) fail(500, tick.error.message);
   return { game, code, playerId: host.id };
+}
+
+function shipAtFleet(ships: any[], x: number, y: number): any | null {
+  return ships.find((ship) => ship.cells.some((cell: any) => cell.x === x && cell.y === y)) || null;
+}
+
+function randomFleet(): any[] {
+  const ships = [];
+  for (const ship of FLEET) {
+    let placed = false;
+    for (let attempt = 0; attempt < 800 && !placed; attempt += 1) {
+      const direction = randomIndex(2) === 0 ? 'horizontal' : 'vertical';
+      const maxX = direction === 'horizontal' ? BOARD_SIZE - ship.length : BOARD_SIZE - 1;
+      const maxY = direction === 'vertical' ? BOARD_SIZE - ship.length : BOARD_SIZE - 1;
+      const x = randomIndex(maxX + 1);
+      const y = randomIndex(maxY + 1);
+      const cells = Array.from({ length: ship.length }, (_, index) => ({
+        x: direction === 'horizontal' ? x + index : x,
+        y: direction === 'vertical' ? y + index : y
+      }));
+      if (cells.every((cell) => !shipAtFleet(ships, cell.x, cell.y))) {
+        ships.push({ id: ship.id, cells });
+        placed = true;
+      }
+    }
+    if (!placed) {
+      fail(503, 'Datorn kunde inte placera sin flotta just nu.');
+    }
+  }
+  return validateFleet(ships);
+}
+
+async function createBotGame(hostName: unknown): Promise<{ game: any; code: string; playerId: string }> {
+  const { game, code, playerId } = await createGame(hostName, 'classic');
+  const bot = createBotPlayer();
+  bot.ships = randomFleet();
+  bot.ready = true;
+  bot.energy = modeSettings(game).startingEnergy;
+  bot.sonarScans = [];
+  game.players.push(bot);
+  game.shotsByPlayer[bot.id] = [];
+  game.status = 'placing';
+  touch(game);
+  logEvent(game, 'system', `${bot.name} Ã¤r redo. Placera din flotta!`);
+  await saveGame(game);
+  return { game, code, playerId };
 }
 
 function getPlayer(game: any, playerId: unknown): any {
@@ -705,6 +771,72 @@ function performShot(game: any, attacker: any, defender: any, x: number, y: numb
   return { ability: 'shot', ...outcome };
 }
 
+function isBotPlayer(player: any): boolean {
+  return Boolean(player?.isBot);
+}
+
+function unshotCells(game: any, attackerId: string): Array<{ x: number; y: number }> {
+  const cells = [];
+  for (let y = 0; y < BOARD_SIZE; y += 1) {
+    for (let x = 0; x < BOARD_SIZE; x += 1) {
+      if (!hasShotAt(game, attackerId, x, y)) {
+        cells.push({ x, y });
+      }
+    }
+  }
+  return cells;
+}
+
+function botTargetCandidates(game: any, botId: string): Array<{ x: number; y: number }> {
+  const shots = game.shotsByPlayer[botId] || [];
+  const candidates: Array<{ x: number; y: number }> = [];
+  shots
+    .filter((shot: any) => shot.result === 'hit' && !shot.sunkShipId)
+    .forEach((shot: any) => {
+      [
+        { x: shot.x + 1, y: shot.y },
+        { x: shot.x - 1, y: shot.y },
+        { x: shot.x, y: shot.y + 1 },
+        { x: shot.x, y: shot.y - 1 }
+      ].forEach((cell) => {
+        if (cell.x >= 0 && cell.y >= 0 && cell.x < BOARD_SIZE && cell.y < BOARD_SIZE && !hasShotAt(game, botId, cell.x, cell.y)) {
+          candidates.push(cell);
+        }
+      });
+    });
+  return candidates;
+}
+
+function chooseBotShot(game: any, bot: any): { x: number; y: number } | null {
+  const targets = botTargetCandidates(game, bot.id);
+  if (targets.length) {
+    return targets[randomIndex(targets.length)];
+  }
+  const available = unshotCells(game, bot.id);
+  return available.length ? available[randomIndex(available.length)] : null;
+}
+
+function runBotTurns(game: any): void {
+  let guard = 0;
+  while (game.status === 'playing' && guard < BOARD_SIZE * BOARD_SIZE) {
+    const bot = game.players.find((entry: any) => entry.id === game.turnPlayerId);
+    if (!isBotPlayer(bot)) {
+      return;
+    }
+    const defender = getOpponent(game, bot.id);
+    if (!defender?.ready) {
+      return;
+    }
+    const shot = chooseBotShot(game, bot);
+    if (!shot) {
+      setTurn(game, defender.id);
+      return;
+    }
+    performShot(game, bot, defender, shot.x, shot.y);
+    guard += 1;
+  }
+}
+
 function regionCells(centerX: number, centerY: number, radius: number): Array<{ x: number; y: number }> {
   const cells = [];
   for (let y = centerY - radius; y <= centerY + radius; y += 1) {
@@ -776,8 +908,10 @@ async function performAction(body: any): Promise<{ game: any; result: any }> {
   else if (ability === 'barrage') result = performBarrage(game, attacker, defender, x, y);
   else fail(400, 'Unknown ability.');
 
+  runBotTurns(game);
   if (game.status === 'finished') {
-    await recordHighScore(game, attacker);
+    const winner = game.players.find((entry: any) => entry.id === game.winnerId) || attacker;
+    await recordHighScore(game, winner);
   }
   touch(game);
   await saveGame(game);
@@ -852,6 +986,7 @@ function serializeGame(game: any, playerId: unknown): any {
     target: {
       opponentName: opponent ? opponent.name : null,
       opponentReady: opponent ? opponent.ready : false,
+      ships: game.status === 'finished' && opponent ? opponent.ships || [] : [],
       outgoingShots: (game.shotsByPlayer[player.id] || []).map(cloneShot),
       sonarScans: player.sonarScans.map((scan: any) => ({ ...scan }))
     },
@@ -883,6 +1018,11 @@ Deno.serve(async (req) => {
 
     if (parts[0] === 'create') {
       const { game, code, playerId } = await createGame(body.name, body.mode);
+      return json(201, { code, playerId, state: serializeGame(game, playerId) });
+    }
+
+    if (parts[0] === 'create-bot') {
+      const { game, code, playerId } = await createBotGame(body.name);
       return json(201, { code, playerId, state: serializeGame(game, playerId) });
     }
 

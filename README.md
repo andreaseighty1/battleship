@@ -35,6 +35,7 @@ npm.cmd test
 - Båda placerar fem klassiska skepp manuellt eller med auto-placering.
 - Spelplanerna visar klassiska koordinater: A-J som rader och 1-10 som kolumner.
 - Skaparen väljer Classic eller Arcade när rummet skapas.
+- Från startsidan kan du också starta en Classic-match mot datorn.
 - När båda är redo startar matchen.
 - En match kan som längst pågå i 48 timmar från att rummet skapas. Därefter avslutas den utan highscore.
 - Spelet visar matchtid, kvarvarande tid och hur länge du väntat på motståndarens drag.

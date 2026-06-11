@@ -64,6 +64,9 @@ button {
 
 button:disabled {
   cursor: not-allowed;
+}
+
+button:disabled:not(.cell) {
   opacity: 0.48;
 }
 
@@ -138,12 +141,12 @@ input {
 }
 
 .brand-logo {
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 54px;
   display: block;
   flex: 0 0 auto;
   object-fit: contain;
-  filter: drop-shadow(0 4px 7px rgba(23, 32, 42, 0.18));
+  filter: drop-shadow(0 4px 7px rgba(23, 32, 42, 0.22));
 }
 
 .brand h1 {
@@ -243,8 +246,8 @@ input {
 }
 
 .studio-credit img {
-  width: 26px;
-  height: 28px;
+  width: 28px;
+  height: 31px;
   display: block;
   flex: 0 0 auto;
   object-fit: contain;
@@ -543,7 +546,12 @@ input {
 }
 
 .placement-board-panel {
+  position: relative;
   overflow: visible;
+}
+
+.placement-float-controls {
+  display: none;
 }
 
 .time-panel {
@@ -606,6 +614,40 @@ input {
   gap: 10px;
 }
 
+.target-board-panel {
+  position: relative;
+}
+
+.turn-lock-overlay {
+  position: absolute;
+  left: 50%;
+  top: clamp(58px, 14%, 96px);
+  z-index: 9;
+  display: grid;
+  gap: 3px;
+  min-width: min(240px, calc(100% - 44px));
+  transform: translateX(-50%);
+  border: 1px solid rgba(23, 32, 42, 0.24);
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: #ffffff;
+  background: rgba(23, 32, 42, 0.86);
+  box-shadow: 0 12px 24px rgba(23, 32, 42, 0.22);
+  text-align: center;
+  pointer-events: none;
+}
+
+.turn-lock-overlay strong {
+  font-size: 0.94rem;
+  line-height: 1;
+}
+
+.turn-lock-overlay span {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
 .board-title {
   display: flex;
   justify-content: space-between;
@@ -631,8 +673,7 @@ input {
 .mobile-info-scrim,
 .side-close,
 .side-panel-header,
-.mobile-side-actions,
-.placement-float-controls {
+.mobile-side-actions {
   display: none;
 }
 
@@ -847,6 +888,37 @@ button.cell:not(:disabled):hover {
   height: calc(100% / var(--ship-length));
   transform: translate(-50%, -50%) rotate(90deg);
   transform-origin: center;
+}
+
+.ship-overlay.is-revealed-enemy {
+  z-index: 3;
+}
+
+.ship-overlay.is-winner-fleet {
+  filter:
+    drop-shadow(0 0 8px rgba(244, 211, 94, 0.72))
+    drop-shadow(0 8px 9px rgba(0, 0, 0, 0.3));
+}
+
+.ship-overlay.is-winner-fleet::after {
+  content: "";
+  position: absolute;
+  inset: 8%;
+  z-index: 2;
+  border: 2px solid rgba(244, 211, 94, 0.82);
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.ship-overlay.is-defeated-fleet {
+  opacity: 0.82;
+  filter:
+    grayscale(0.24)
+    drop-shadow(0 8px 9px rgba(0, 0, 0, 0.28));
+}
+
+.ship-overlay.is-revealed-enemy .ship-sprite {
+  opacity: 0.92;
 }
 
 .cell.is-preview {
@@ -1577,8 +1649,8 @@ button.cell:not(:disabled):hover {
   }
 
   .brand-logo {
-    width: 40px;
-    height: 40px;
+    width: 42px;
+    height: 44px;
   }
 
   .brand h1 {
@@ -1694,6 +1766,7 @@ button.cell:not(:disabled):hover {
 
   .placement-grid {
     gap: 8px;
+    overflow-x: clip;
   }
 
   .placement-controls-panel {
@@ -1734,7 +1807,7 @@ button.cell:not(:disabled):hover {
 
   .placement-toolbar {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
     margin-top: 6px;
   }
@@ -1747,12 +1820,12 @@ button.cell:not(:disabled):hover {
     min-height: 36px;
     flex-basis: auto;
     padding: 0 8px;
-    font-size: 0.82rem;
+    font-size: 0.78rem;
   }
 
   .placement-toolbar .btn.primary {
-    grid-column: 1 / -1;
-    min-height: 40px;
+    grid-column: auto;
+    min-height: 36px;
   }
 
   .placement-float-controls {
@@ -1760,9 +1833,10 @@ button.cell:not(:disabled):hover {
     align-items: center;
     gap: 6px;
     position: absolute;
-    right: 14px;
-    bottom: 14px;
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
     z-index: 8;
+    max-width: calc(100% - 16px);
     border: 1px solid rgba(255, 255, 255, 0.62);
     border-radius: 999px;
     padding: 4px;
@@ -1799,12 +1873,12 @@ button.cell:not(:disabled):hover {
   }
 
   .topbar.is-status-playing + .screen .own-board-panel .board-title {
-    width: min(100%, 238px);
+    width: min(100%, 278px);
   }
 
   .topbar.is-status-playing + .screen .own-board-panel .board-shell {
     width: 100%;
-    max-width: 238px;
+    max-width: 278px;
     grid-template-columns: 14px minmax(0, 1fr);
     grid-template-rows: 14px auto;
   }
@@ -1832,7 +1906,7 @@ button.cell:not(:disabled):hover {
   }
 
   .placement-toolbar .btn {
-    flex-basis: calc(50% - 4px);
+    flex-basis: auto;
   }
 
   .segmented {
@@ -1917,5 +1991,13 @@ button.cell:not(:disabled):hover {
 
   .axis-labels {
     font-size: 0.58rem;
+  }
+
+  .topbar.is-status-playing + .screen .own-board-panel .board-title {
+    width: min(100%, 252px);
+  }
+
+  .topbar.is-status-playing + .screen .own-board-panel .board-shell {
+    max-width: 252px;
   }
 }

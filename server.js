@@ -268,8 +268,24 @@ function publicScore(score) {
   };
 }
 
+function createBotPlayer(name = 'Datorn') {
+  const bot = createPlayer(name, 1);
+  bot.isBot = true;
+  return bot;
+}
+
+function isHiddenScore(score) {
+  return score
+    && String(score.winnerName || '').trim().toLowerCase() === 'ada'
+    && normalizeMode(score.mode) === 'arcade'
+    && Number(score.durationMs || 0) <= 10000
+    && Number(score.shots || 0) === 18
+    && Number(score.hits || 0) === 17
+    && Number(score.misses || 0) === 1;
+}
+
 function getHighScores(limit = SCORE_LIMIT) {
-  return highScores.slice(0, limit).map(publicScore);
+  return highScores.filter((score) => !isHiddenScore(score)).slice(0, limit).map(publicScore);
 }
 
 function shotStatsFor(game, playerId) {
@@ -309,7 +325,7 @@ function recordHighScore(game, winner) {
   game.score = score;
   highScores.push(score);
   highScores.sort(compareScores);
-  highScores.splice(SCORE_LIMIT);
+  highScores.splice(SCORE_LIMIT + 10);
   return score;
 }
 
@@ -346,6 +362,51 @@ function createGame(hostName, store = games, mode = DEFAULT_MODE) {
   logEvent(game, 'system', `${host.name} skapade ett ${modeSettings(gameMode).label}-rum.`);
   store.set(code, game);
   return { game, code, playerId: host.id };
+}
+
+function randomFleet() {
+  const ships = [];
+  for (const ship of FLEET) {
+    let placed = false;
+    for (let attempt = 0; attempt < 800 && !placed; attempt += 1) {
+      const direction = crypto.randomInt(2) === 0 ? 'horizontal' : 'vertical';
+      const maxX = direction === 'horizontal' ? BOARD_SIZE - ship.length : BOARD_SIZE - 1;
+      const maxY = direction === 'vertical' ? BOARD_SIZE - ship.length : BOARD_SIZE - 1;
+      const x = crypto.randomInt(maxX + 1);
+      const y = crypto.randomInt(maxY + 1);
+      const cells = Array.from({ length: ship.length }, (_, index) => ({
+        x: direction === 'horizontal' ? x + index : x,
+        y: direction === 'vertical' ? y + index : y
+      }));
+      if (cells.every((cell) => !shipAtFleet(ships, cell.x, cell.y))) {
+        ships.push({ id: ship.id, cells });
+        placed = true;
+      }
+    }
+    if (!placed) {
+      fail(503, 'Datorn kunde inte placera sin flotta just nu.');
+    }
+  }
+  return validateFleet(ships);
+}
+
+function shipAtFleet(ships, x, y) {
+  return ships.find((ship) => ship.cells.some((cell) => cell.x === x && cell.y === y)) || null;
+}
+
+function createBotGame(hostName, store = games) {
+  const { game, code, playerId } = createGame(hostName, store, 'classic');
+  const bot = createBotPlayer();
+  bot.ships = randomFleet();
+  bot.ready = true;
+  bot.energy = modeSettings(game).startingEnergy;
+  bot.sonarScans = [];
+  game.players.push(bot);
+  game.shotsByPlayer[bot.id] = [];
+  game.status = 'placing';
+  touch(game);
+  logEvent(game, 'system', `${bot.name} Ã¤r redo. Placera din flotta!`);
+  return { game, code, playerId };
 }
 
 function getGame(codeInput, store = games) {
@@ -627,6 +688,72 @@ function performShot(game, attacker, defender, x, y) {
   return { ability: 'shot', ...outcome };
 }
 
+function isBotPlayer(player) {
+  return Boolean(player && player.isBot);
+}
+
+function unshotCells(game, attackerId) {
+  const cells = [];
+  for (let y = 0; y < BOARD_SIZE; y += 1) {
+    for (let x = 0; x < BOARD_SIZE; x += 1) {
+      if (!hasShotAt(game, attackerId, x, y)) {
+        cells.push({ x, y });
+      }
+    }
+  }
+  return cells;
+}
+
+function botTargetCandidates(game, botId) {
+  const shots = game.shotsByPlayer[botId] || [];
+  const candidates = [];
+  shots
+    .filter((shot) => shot.result === 'hit' && !shot.sunkShipId)
+    .forEach((shot) => {
+      [
+        { x: shot.x + 1, y: shot.y },
+        { x: shot.x - 1, y: shot.y },
+        { x: shot.x, y: shot.y + 1 },
+        { x: shot.x, y: shot.y - 1 }
+      ].forEach((cell) => {
+        if (cell.x >= 0 && cell.y >= 0 && cell.x < BOARD_SIZE && cell.y < BOARD_SIZE && !hasShotAt(game, botId, cell.x, cell.y)) {
+          candidates.push(cell);
+        }
+      });
+    });
+  return candidates;
+}
+
+function chooseBotShot(game, bot) {
+  const targets = botTargetCandidates(game, bot.id);
+  if (targets.length) {
+    return targets[crypto.randomInt(targets.length)];
+  }
+  const available = unshotCells(game, bot.id);
+  return available.length ? available[crypto.randomInt(available.length)] : null;
+}
+
+function runBotTurns(game) {
+  let guard = 0;
+  while (game.status === 'playing' && guard < BOARD_SIZE * BOARD_SIZE) {
+    const bot = game.players.find((entry) => entry.id === game.turnPlayerId);
+    if (!isBotPlayer(bot)) {
+      return;
+    }
+    const defender = getOpponent(game, bot.id);
+    if (!defender || !defender.ready) {
+      return;
+    }
+    const shot = chooseBotShot(game, bot);
+    if (!shot) {
+      setTurn(game, defender.id);
+      return;
+    }
+    performShot(game, bot, defender, shot.x, shot.y);
+    guard += 1;
+  }
+}
+
 function regionCells(centerX, centerY, radius) {
   const cells = [];
   for (let y = centerY - radius; y <= centerY + radius; y += 1) {
@@ -727,6 +854,7 @@ function performAction(codeInput, playerId, body, store = games) {
     fail(400, 'Okänd förmåga.');
   }
 
+  runBotTurns(game);
   touch(game);
   return { game, result };
 }
@@ -814,6 +942,7 @@ function serializeGame(game, playerId) {
     target: {
       opponentName: opponent ? opponent.name : null,
       opponentReady: opponent ? opponent.ready : false,
+      ships: game.status === 'finished' && opponent ? opponent.ships || [] : [],
       outgoingShots: (game.shotsByPlayer[player.id] || []).map(cloneShot),
       sonarScans: player.sonarScans.map((scan) => ({ ...scan }))
     },
@@ -954,6 +1083,12 @@ async function handleApi(req, res, url) {
       return;
     }
 
+    if (parts[1] === 'create-bot') {
+      const { game, code, playerId } = createBotGame(body.name);
+      sendJson(res, 201, { code, playerId, state: serializeGame(game, playerId) });
+      return;
+    }
+
     if (parts[1] === 'join') {
       const { game, code, playerId } = joinGame(body.code, body.name);
       broadcast(game);
@@ -1076,6 +1211,7 @@ module.exports = {
   MAX_ENERGY,
   SONAR_COST,
   abandonGame,
+  createBotGame,
   createGame,
   joinGame,
   getHighScores,

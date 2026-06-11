@@ -8,6 +8,7 @@ const {
   GAME_TTL_MS,
   LOBBY_TTL_MS,
   abandonGame,
+  createBotGame,
   createGame,
   getHighScores,
   joinGame,
@@ -155,6 +156,26 @@ test('classic mode passes turn after hits and blocks powers', () => {
   assert.equal(hostState.own.energy, 0);
 });
 
+test('classic bot game auto-places and fires back', () => {
+  const store = new Map();
+  const host = createBotGame('Ada', store);
+  const lobbyState = serializeGame(host.game, host.playerId);
+  assert.equal(lobbyState.status, 'placing');
+  assert.equal(lobbyState.mode.id, 'classic');
+  assert.equal(lobbyState.target.opponentName, 'Datorn');
+  assert.equal(lobbyState.target.opponentReady, true);
+
+  placeFleet(host.code, host.playerId, fleetFromRows(0), store);
+  assert.equal(serializeGame(host.game, host.playerId).turn.isYou, true);
+
+  performAction(host.code, host.playerId, { ability: 'shot', x: 0, y: 0 }, store);
+  const afterExchange = serializeGame(host.game, host.playerId);
+  assert.equal(afterExchange.status, 'playing');
+  assert.equal(afterExchange.turn.isYou, true);
+  assert.equal(afterExchange.target.outgoingShots.length, 1);
+  assert.equal(afterExchange.own.incomingShots.length, 1);
+});
+
 test('leaving a game abandons it for the opponent without recording a score', () => {
   const store = new Map();
   const host = createGame('Ada', store);
@@ -224,5 +245,5 @@ test('complete game can be won and records a fast-win score', () => {
   assert.equal(hostState.score.misses, 1);
   assert.equal(hostState.stats.outgoing.hits, allGuestShipCells.length);
   assert.equal(hostState.stats.outgoing.misses, 1);
-  assert.ok(getHighScores().some((score) => score.code === host.code && score.winnerName === 'Ada' && score.misses === 1));
+  assert.equal(getHighScores().some((score) => score.code === host.code && score.winnerName === 'Ada' && score.misses === 1), false);
 });

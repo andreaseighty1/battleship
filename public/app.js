@@ -28,8 +28,8 @@
     destroyer: assetUrl('gfx/ship_2_squares_v1.png')
   };
   const TITLE_IMAGE = assetUrl('gfx/battleship_logo_swe.png');
-  const OWL_LOGO = assetUrl('gfx/42io-seal-light.svg');
-  const OWL_SEAL_LOGO = assetUrl('gfx/42io-seal-light.svg');
+  const OWL_LOGO = assetUrl('gfx/42-improbable-owls-logo.svg');
+  const OWL_SEAL_LOGO = assetUrl('gfx/42io-mark-light.svg');
   const MUSIC_ASSETS = {
     title: assetUrl('sounds/battleship_title.mp3'),
     battle: assetUrl('sounds/battleship_battle.mp3')
@@ -510,10 +510,20 @@
   async function loadScores() {
     try {
       const data = await fetchScores();
-      scores = Array.isArray(data.scores) ? data.scores : [];
+      scores = Array.isArray(data.scores) ? data.scores.filter((score) => !isHiddenScore(score)) : [];
     } catch {
       scores = [];
     }
+  }
+
+  function isHiddenScore(score) {
+    return score
+      && String(score.winnerName || '').trim().toLowerCase() === 'ada'
+      && normalizeModeId(score.mode) === 'arcade'
+      && Number(score.durationMs || 0) <= 10000
+      && Number(score.shots || 0) === 18
+      && Number(score.hits || 0) === 17
+      && Number(score.misses || 0) === 1;
   }
 
   function formatDuration(ms) {
@@ -882,6 +892,7 @@
             <input name="name" maxlength="24" placeholder="Ditt namn" autocomplete="nickname" required value="${escapeHtml(playerNameDraft)}">
             ${renderModeSelector()}
             <button class="btn primary" type="submit">Skapa kod</button>
+            <button class="btn ghost bot-create" data-action="create-bot" type="button">Spela mot datorn</button>
           </form>
           <form class="form-grid" data-form="join">
             <h2>Gå med</h2>
@@ -1042,6 +1053,7 @@
             </div>
           </div>
           ${renderBoard('target')}
+          ${renderTurnLockOverlay()}
         </div>
         <div class="mobile-info-scrim ${mobileInfoOpen ? 'is-open' : ''}" data-action="close-mobile-info" aria-hidden="true"></div>
         <aside class="panel side-panel ${mobileInfoOpen ? 'is-open' : ''}">
@@ -1064,6 +1076,18 @@
           </div>
         </aside>
       </section>
+    `;
+  }
+
+  function renderTurnLockOverlay() {
+    if (!state || state.status !== 'playing' || !state.turn || state.turn.isYou) {
+      return '';
+    }
+    return `
+      <div class="turn-lock-overlay" role="status" aria-live="polite">
+        <strong>Motståndarens tur</strong>
+        <span>${escapeHtml(formatDuration(turnElapsedMs()))}</span>
+      </div>
     `;
   }
 
@@ -1252,6 +1276,10 @@
   }
 
   function renderShipOverlays(type) {
+    if (type === 'target' && state.status === 'finished' && state.target && Array.isArray(state.target.ships)) {
+      const reveal = state.winner && state.winner.isYou ? 'defeated' : 'winner';
+      return state.target.ships.map((ship) => renderShipOverlay(ship, reveal)).join('');
+    }
     if (type === 'target') {
       return '';
     }
@@ -1259,7 +1287,7 @@
     return (ships || []).map(renderShipOverlay).join('');
   }
 
-  function renderShipOverlay(ship) {
+  function renderShipOverlay(ship, revealState = '') {
     const cells = Array.isArray(ship.cells)
       ? ship.cells.map((cell) => ({ x: Number(cell.x), y: Number(cell.y) }))
       : [];
@@ -1284,8 +1312,9 @@
       `--ship-length: ${length}`
     ].join('; ');
 
+    const revealClass = revealState ? ` is-revealed-enemy is-${revealState}-fleet` : '';
     return `
-      <span class="ship-overlay ship-dir-${direction}" style="${style}" aria-hidden="true">
+      <span class="ship-overlay ship-dir-${direction}${revealClass}" style="${style}" aria-hidden="true">
         <img class="ship-sprite" src="${escapeHtml(asset)}" alt="">
       </span>
     `;
@@ -1588,6 +1617,7 @@
     if (action === 'show-scores') return showScoresPage();
     if (action === 'show-home') return showHomePage();
     if (action === 'refresh-scores') return refreshScoresPage();
+    if (action === 'create-bot') return createBotGame();
     if (action === 'toggle-mobile-info') return toggleMobileInfo();
     if (action === 'close-mobile-info') return closeMobileInfo();
     if (action === 'select-ship') return selectShip(event.currentTarget.dataset.ship);
@@ -1619,6 +1649,31 @@
     playUiSound('click');
     await loadScores();
     render();
+  }
+
+  async function createBotGame() {
+    unlockAudio();
+    const name = playerNameDraft.trim();
+    if (!name) {
+      playUiSound('error');
+      showToast('Skriv ett namn först.');
+      return;
+    }
+    playerNameDraft = name;
+    writePlayerName(name);
+    try {
+      const data = await api('/api/create-bot', { name });
+      selectedMode = 'classic';
+      storage.set({ backend: backendMode, code: data.code, playerId: data.playerId });
+      state = data.state;
+      activePage = 'home';
+      resetLocalPlacement();
+      playUiSound('ready');
+      connectEvents(data.code, data.playerId);
+    } catch (error) {
+      playUiSound('error');
+      showToast(error.message);
+    }
   }
 
   function toggleMobileInfo() {
