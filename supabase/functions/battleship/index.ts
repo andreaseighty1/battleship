@@ -7,7 +7,7 @@ const MAX_ENERGY = 9;
 const LOBBY_TTL_MS = 5 * 60 * 1000;
 const GAME_TTL_MS = 48 * 60 * 60 * 1000;
 const SCORE_LIMIT = 50;
-const DEFAULT_MODE = 'arcade';
+const DEFAULT_MODE = 'classic';
 const GAME_MODES = Object.freeze({
   classic: Object.freeze({
     id: 'classic',

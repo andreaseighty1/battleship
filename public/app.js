@@ -17,8 +17,8 @@
     { id: 'destroyer', name: 'Jagare', length: 2 }
   ];
   const GAME_MODES = [
-    { id: 'arcade', label: 'Arcade', tag: 'Energi' },
-    { id: 'classic', label: 'Classic', tag: 'Rent spel' }
+    { id: 'classic', label: 'Classic', tag: 'Standard' },
+    { id: 'arcade', label: 'Arcade', tag: 'Under byggnation' }
   ];
   const SHIP_ASSETS = {
     carrier: assetUrl('gfx/ship_5_squares.png'),
@@ -95,7 +95,7 @@
   let placedShips = [];
   let hoverCell = null;
   let selectedAbility = 'shot';
-  let selectedMode = 'arcade';
+  let selectedMode = 'classic';
   let activePage = 'home';
   let mobileInfoOpen = false;
   let playerNameDraft = readPlayerName();
@@ -668,7 +668,7 @@
 
   function normalizeModeId(value) {
     const mode = String(value || '').toLowerCase();
-    return GAME_MODES.some((entry) => entry.id === mode) ? mode : 'arcade';
+    return GAME_MODES.some((entry) => entry.id === mode) ? mode : 'classic';
   }
 
   function modeLabel(value) {
@@ -887,14 +887,13 @@
   function renderHome() {
     return `
       <section class="title-screen">
-        <div class="title-banner-card">
-          <img class="title-banner" src="${BANNER_IMAGE}" alt="Sänka Skepp">
-        </div>
+        ${renderTitleBanner()}
         <div class="home-console">
           ${renderHomeStatusCard()}
           <div class="home-launch-controls">
             <input class="home-name-input" name="name" maxlength="24" placeholder="Ditt namn" autocomplete="nickname" value="${escapeHtml(playerNameDraft)}">
             ${renderModeSelector()}
+            ${renderModeNotice()}
           </div>
           <div class="home-menu-grid">
             <form class="home-menu-form" data-form="create">
@@ -904,13 +903,11 @@
                 <span>Online lobby</span>
               </button>
             </form>
-            <form class="home-menu-form join-menu-form" data-form="join">
-              <input class="home-code-input" name="code" maxlength="7" placeholder="Kod" autocomplete="off">
-              <button class="menu-card" type="submit">
-                <span class="menu-icon icon-target" aria-hidden="true"></span>
-                <strong>Gå med</strong>
-                <span>Anslut med kod</span>
-              </button>
+            <form class="menu-card join-menu-card" data-form="join">
+              <span class="menu-icon icon-target" aria-hidden="true"></span>
+              <strong>Gå med</strong>
+              <input class="home-code-input" name="code" maxlength="7" placeholder="Kod" autocomplete="off" aria-label="Rumskod">
+              <button class="join-submit" type="submit">Anslut</button>
             </form>
             <button class="menu-card" data-action="create-bot" type="button">
               <span class="menu-icon icon-bot" aria-hidden="true"></span>
@@ -933,6 +930,15 @@
     `;
   }
 
+  function renderTitleBanner(extraClass = '') {
+    const className = ['title-banner-card', extraClass].filter(Boolean).join(' ');
+    return `
+      <div class="${className}">
+        <img class="title-banner" src="${BANNER_IMAGE}" alt="Sänka Skepp">
+      </div>
+    `;
+  }
+
   function renderHomeStatusCard() {
     const today = new Date().toDateString();
     const todayCount = scores.filter((score) => {
@@ -952,8 +958,9 @@
 
   function renderScoresPage() {
     return `
-      <section class="scores-page">
-        <div class="panel scores-panel">
+      <section class="scores-page themed-screen">
+        ${renderTitleBanner('compact-banner-card')}
+        <div class="home-console page-console scores-panel">
           <div class="scores-header">
             <div>
               <h2>Topplista</h2>
@@ -980,6 +987,15 @@
             <span>${escapeHtml(mode.tag)}</span>
           </label>
         `).join('')}
+      </div>
+    `;
+  }
+
+  function renderModeNotice() {
+    return `
+      <div class="mode-notice" role="note">
+        <strong>Classic är standard.</strong>
+        <span>Arcade är inte klar än och byggs vidare med specialförmågor.</span>
       </div>
     `;
   }
@@ -1025,8 +1041,11 @@
       ? `${selectedShip.name}, ${selectedShip.length} rutor`
       : 'Välj ett skepp';
     return `
-      <section class="status-grid placement-grid">
-        <div class="panel placement-controls-panel">
+      <section class="placement-screen themed-screen">
+        ${renderTitleBanner('compact-banner-card')}
+        <div class="home-console page-console placement-console">
+          <div class="status-grid placement-grid">
+            <div class="panel placement-controls-panel">
           <div class="placement-header">
             <div>
               <h2>Flotta</h2>
@@ -1045,14 +1064,16 @@
             <button class="btn" data-action="clear-place" type="button" ${locked ? 'disabled' : ''}>Rensa</button>
             <button class="btn primary" data-action="ready" type="button" ${canReady && !locked ? '' : 'disabled'}>Redo</button>
           </div>
-        </div>
-        <div class="panel board-wrap placement-board-panel">
+            </div>
+            <div class="panel board-wrap placement-board-panel">
           <div class="board-title">
             <h2>Din spelplan</h2>
             <span class="chip">${locked ? 'Låst' : `${placedShips.length}/${FLEET.length}`}</span>
           </div>
           ${renderBoard('placement')}
           ${renderPlacementFloatControls(locked)}
+            </div>
+          </div>
         </div>
       </section>
     `;

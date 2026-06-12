@@ -62,7 +62,7 @@ test('starts when both players have placed their fleets', () => {
 
   const hostState = serializeGame(host.game, host.playerId);
   assert.equal(hostState.status, 'playing');
-  assert.equal(hostState.mode.id, 'arcade');
+  assert.equal(hostState.mode.id, 'classic');
   assert.equal(hostState.timing.maxDurationMs, GAME_TTL_MS);
   assert.ok(hostState.timing.expiresAt - hostState.timing.createdAt === GAME_TTL_MS);
   assert.equal(hostState.timing.lobbyDurationMs, LOBBY_TTL_MS);
@@ -88,7 +88,7 @@ test('expires waiting lobbies after five minutes', () => {
 
 test('hit keeps turn and miss passes it', () => {
   const store = new Map();
-  const host = createGame('Ada', store);
+  const host = createGame('Ada', store, 'arcade');
   const guest = joinGame(host.code, 'Bo', store);
   placeFleet(host.code, host.playerId, fleetFromRows(0), store);
   placeFleet(host.code, guest.playerId, fleetFromRows(5), store);
@@ -104,7 +104,7 @@ test('hit keeps turn and miss passes it', () => {
 
 test('marks all hit cells when a ship is sunk', () => {
   const store = new Map();
-  const host = createGame('Ada', store);
+  const host = createGame('Ada', store, 'arcade');
   const guest = joinGame(host.code, 'Bo', store);
   placeFleet(host.code, host.playerId, fleetFromRows(0), store);
   const guestFleet = fleetFromRows(5);
@@ -193,7 +193,7 @@ test('leaving a game abandons it for the opponent without recording a score', ()
 
 test('sonar spends energy without changing turn', () => {
   const store = new Map();
-  const host = createGame('Ada', store);
+  const host = createGame('Ada', store, 'arcade');
   const guest = joinGame(host.code, 'Bo', store);
   placeFleet(host.code, host.playerId, fleetFromRows(0), store);
   placeFleet(host.code, guest.playerId, fleetFromRows(5), store);
@@ -207,7 +207,7 @@ test('sonar spends energy without changing turn', () => {
 
 test('barrage spends energy and fires a cross pattern', () => {
   const store = new Map();
-  const host = createGame('Ada', store);
+  const host = createGame('Ada', store, 'arcade');
   const guest = joinGame(host.code, 'Bo', store);
   placeFleet(host.code, host.playerId, fleetFromRows(0), store);
   placeFleet(host.code, guest.playerId, fleetFromRows(5), store);
@@ -220,7 +220,7 @@ test('barrage spends energy and fires a cross pattern', () => {
 
 test('complete game can be won and records a fast-win score', () => {
   const store = new Map();
-  const host = createGame('Ada', store);
+  const host = createGame('Ada', store, 'arcade');
   const guest = joinGame(host.code, 'Bo', store);
   const hostFleet = fleetFromRows(0);
   const guestFleet = fleetFromRows(5);
