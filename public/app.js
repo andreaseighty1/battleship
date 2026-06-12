@@ -796,10 +796,7 @@
     if (!state || state.status !== 'placing' || placedShips.length) {
       return;
     }
-    placedShips = (state.own.ships || []).map((ship) => ({
-      id: ship.id,
-      cells: ship.cells.map((cell) => ({ x: cell.x, y: cell.y }))
-    }));
+    placedShips = (state.own.ships || []).map(normalizePlacementShip).filter(Boolean);
   }
 
   function resetLocalPlacement() {
@@ -1082,8 +1079,9 @@
     const canReady = placedShips.length === FLEET.length;
     const locked = state.own.ready;
     const selectedShip = FLEET.find((ship) => ship.id === selectedShipId);
-    const selectedText = selectedShip && !placedShips.some((entry) => entry.id === selectedShip.id)
-      ? `${selectedShip.name}, ${selectedShip.length} rutor`
+    const selectedPlacement = selectedShip ? placementForType(selectedShip.id) : null;
+    const selectedText = selectedShip
+      ? `${selectedShip.name}, ${selectedShip.length} rutor${selectedPlacement ? ' - vald för flytt' : ''}`
       : 'Välj ett skepp';
     return `
       <section class="placement-screen themed-screen">
@@ -1107,6 +1105,7 @@
             </div>
             <button class="btn" data-action="auto-place" type="button" ${locked ? 'disabled' : ''}>Auto</button>
             <button class="btn" data-action="clear-place" type="button" ${locked ? 'disabled' : ''}>Rensa</button>
+            <button class="btn danger" data-action="remove-ship" type="button" ${selectedPlacement && !locked ? '' : 'disabled'}>Ta bort</button>
             <button class="btn primary" data-action="ready" type="button" ${canReady && !locked ? '' : 'disabled'}>Redo</button>
           </div>
             </div>
@@ -1342,11 +1341,13 @@
   }
 
   function renderShipButton(ship) {
-    const placed = placedShips.some((entry) => entry.id === ship.id);
+    const placed = Boolean(placementForType(ship.id));
+    const active = selectedShipId === ship.id;
     return `
-      <button class="ship-button ${selectedShipId === ship.id ? 'is-active' : ''} ${placed ? 'is-placed' : ''}" data-action="select-ship" data-ship="${ship.id}" type="button" ${state && state.own.ready ? 'disabled' : ''}>
+      <button class="ship-button ${active ? 'is-active' : ''} ${placed ? 'is-placed' : ''}" data-action="select-ship" data-ship="${ship.id}" type="button" ${state && state.own.ready ? 'disabled' : ''}>
         <strong>${escapeHtml(ship.name)}</strong>
         <span class="ship-pips">${'<span></span>'.repeat(ship.length)}</span>
+        <span class="ship-state">${placed ? (active ? 'Flytta' : 'Placerad') : 'Välj'}</span>
       </button>
     `;
   }
@@ -1384,19 +1385,18 @@
       return '';
     }
     const ships = type === 'placement' ? placedShips : state.own.ships;
-    return (ships || []).map(renderShipOverlay).join('');
+    return (ships || []).map((ship) => renderShipOverlay(ship, '', type)).join('');
   }
 
-  function renderShipOverlay(ship, revealState = '') {
-    const cells = Array.isArray(ship.cells)
-      ? ship.cells.map((cell) => ({ x: Number(cell.x), y: Number(cell.y) }))
-      : [];
+  function renderShipOverlay(ship, revealState = '', boardType = '') {
+    const placement = normalizePlacementShip(ship);
+    const cells = placement ? getShipCells(placement) : [];
     if (!cells.length) {
       return '';
     }
 
-    const fleetShip = FLEET.find((entry) => entry.id === ship.id) || {};
-    const length = Number(ship.length || fleetShip.length || cells.length);
+    const fleetShip = FLEET.find((entry) => entry.id === placement.type) || {};
+    const length = Number(placement.size || fleetShip.length || cells.length);
     const line = straightShipLine(cells, length);
     if (!line) {
       return '';
@@ -1405,7 +1405,7 @@
     const start = sorted[0];
     const columnSpan = direction === 'horizontal' ? length : 1;
     const rowSpan = direction === 'vertical' ? length : 1;
-    const asset = SHIP_ASSETS[ship.id] || SHIP_ASSETS.destroyer;
+    const asset = SHIP_ASSETS[placement.type] || SHIP_ASSETS.destroyer;
     const style = [
       `grid-column: ${start.x + 1} / span ${columnSpan}`,
       `grid-row: ${start.y + 1} / span ${rowSpan}`,
@@ -1413,8 +1413,9 @@
     ].join('; ');
 
     const revealClass = revealState ? ` is-revealed-enemy is-${revealState}-fleet` : '';
+    const selectedClass = boardType === 'placement' && selectedShipId === placement.type ? ' is-selected-placement' : '';
     return `
-      <span class="ship-overlay ship-dir-${direction}${revealClass}" style="${style}" aria-hidden="true">
+      <span class="ship-overlay ship-dir-${direction}${revealClass}${selectedClass}" style="${style}" aria-hidden="true">
         <img class="ship-sprite" src="${escapeHtml(asset)}" alt="">
       </span>
     `;
@@ -1433,6 +1434,7 @@
       const preview = previewCells();
       const inPreview = preview.cells.some((cell) => cell.x === x && cell.y === y);
       if (ship) classes.push('is-ship');
+      if (ship && ship.type === selectedShipId) classes.push('is-selected-ship');
       if (inPreview) classes.push(preview.valid ? 'is-preview' : 'is-bad-preview');
       disabled = Boolean(state && state.own.ready);
     }
@@ -1500,7 +1502,10 @@
   }
 
   function shipAt(ships, x, y) {
-    return (ships || []).find((ship) => ship.cells.some((cell) => cell.x === x && cell.y === y)) || null;
+    return (ships || [])
+      .map(normalizePlacementShip)
+      .filter(Boolean)
+      .find((ship) => getShipCells(ship).some((cell) => cell.x === x && cell.y === y)) || null;
   }
 
   function sonarAt(x, y) {
@@ -1512,25 +1517,82 @@
 
   function previewCells() {
     if (!hoverCell) {
-      return { cells: [], valid: false };
+      return { cells: [], valid: false, ship: null };
     }
     const ship = FLEET.find((entry) => entry.id === selectedShipId);
     if (!ship) {
-      return { cells: [], valid: false };
+      return { cells: [], valid: false, ship: null };
     }
-    const candidate = placementCandidate(hoverCell, ship);
-    if (candidate) {
-      return { cells: candidate.cells, valid: true };
-    }
-    const cells = cellsForShip(hoverCell.x, hoverCell.y, ship.length, orientation);
-    return { cells, valid: false };
+    const candidate = {
+      type: ship.id,
+      size: ship.length,
+      x: hoverCell.x,
+      y: hoverCell.y,
+      orientation
+    };
+    return {
+      cells: getShipCells(candidate),
+      valid: canPlaceShip(candidate),
+      ship: candidate
+    };
   }
 
-  function cellsForShip(x, y, length, direction) {
-    return Array.from({ length }, (_, index) => ({
-      x: x + (direction === 'horizontal' ? index : 0),
-      y: y + (direction === 'vertical' ? index : 0)
+  function getShipCells(ship) {
+    const normalized = normalizePlacementShip(ship);
+    if (!normalized) {
+      return [];
+    }
+    return Array.from({ length: normalized.size }, (_, index) => ({
+      x: normalized.x + (normalized.orientation === 'horizontal' ? index : 0),
+      y: normalized.y + (normalized.orientation === 'vertical' ? index : 0)
     }));
+  }
+
+  function normalizePlacementShip(ship) {
+    if (!ship) {
+      return null;
+    }
+    const type = String(ship.type || ship.id || '').trim();
+    const fleetShip = FLEET.find((entry) => entry.id === type);
+    if (!fleetShip) {
+      return null;
+    }
+
+    if (Number.isInteger(Number(ship.x)) && Number.isInteger(Number(ship.y))) {
+      return {
+        type,
+        size: Number(ship.size || ship.length || fleetShip.length),
+        x: Number(ship.x),
+        y: Number(ship.y),
+        orientation: ship.orientation === 'vertical' ? 'vertical' : 'horizontal'
+      };
+    }
+
+    const cells = Array.isArray(ship.cells)
+      ? ship.cells.map((cell) => ({ x: Number(cell.x), y: Number(cell.y) }))
+      : [];
+    const line = straightShipLine(cells, Number(ship.size || ship.length || fleetShip.length));
+    if (!line) {
+      return null;
+    }
+    return {
+      type,
+      size: fleetShip.length,
+      x: line.cells[0].x,
+      y: line.cells[0].y,
+      orientation: line.direction
+    };
+  }
+
+  function serializePlacementShip(ship) {
+    const normalized = normalizePlacementShip(ship);
+    if (!normalized) {
+      return null;
+    }
+    return {
+      id: normalized.type,
+      cells: getShipCells(normalized)
+    };
   }
 
   function straightShipLine(cells, expectedLength = cells.length) {
@@ -1557,43 +1619,21 @@
     return contiguous ? { direction, cells: sorted } : null;
   }
 
-  function placementCandidate(cell, ship) {
-    return placementCandidateForDirection(cell, ship, orientation);
-  }
-
-  function placementCandidateForDirection(cell, ship, direction) {
-    const start = adjustedShipStart(cell.x, cell.y, ship.length, direction);
-    const cells = cellsForShip(start.x, start.y, ship.length, direction);
-    if (isPlacementValid(cells, ship.id, ship.length)) {
-      return { cells, direction };
+  function canPlaceShip(ship, fleet = placedShips) {
+    const normalized = normalizePlacementShip(ship);
+    if (!normalized) {
+      return false;
     }
-    return null;
-  }
-
-  function adjustedShipStart(x, y, length, direction) {
-    if (direction === 'vertical') {
-      return {
-        x: clamp(x, 0, BOARD_SIZE - 1),
-        y: clamp(y, 0, BOARD_SIZE - length)
-      };
-    }
-    return {
-      x: clamp(x, 0, BOARD_SIZE - length),
-      y: clamp(y, 0, BOARD_SIZE - 1)
-    };
-  }
-
-  function clamp(value, min, max) {
-    return Math.min(max, Math.max(min, value));
-  }
-
-  function isPlacementValid(cells, shipId, expectedLength = cells.length) {
-    const line = straightShipLine(cells, expectedLength);
+    const cells = getShipCells(normalized);
+    const line = straightShipLine(cells, normalized.size);
     if (!line || line.cells.some((cell) => cell.x < 0 || cell.y < 0 || cell.x >= BOARD_SIZE || cell.y >= BOARD_SIZE)) {
       return false;
     }
+    const otherShips = (fleet || [])
+      .map(normalizePlacementShip)
+      .filter((entry) => entry && entry.type !== normalized.type);
     return line.cells.every((cell) => {
-      const existing = shipAt(placedShips.filter((ship) => ship.id !== shipId), cell.x, cell.y);
+      const existing = shipAt(otherShips, cell.x, cell.y);
       return !existing;
     });
   }
@@ -1725,6 +1765,7 @@
     if (action === 'rotate') return rotateOrientation();
     if (action === 'auto-place') return autoPlace();
     if (action === 'clear-place') return clearPlacement();
+    if (action === 'remove-ship') return removeShip();
     if (action === 'ready') return submitPlacement();
     if (action === 'ability') return selectAbility(event.currentTarget.dataset.ability);
     if (event.currentTarget.dataset.cell === 'placement') return placeSelectedShip(event.currentTarget);
@@ -1791,6 +1832,9 @@
   }
 
   function updatePlacementHover(cell) {
+    if (state && state.own.ready) {
+      return;
+    }
     hoverCell = readCell(cell);
     render();
   }
@@ -1840,43 +1884,24 @@
     if (state && state.own.ready) {
       return;
     }
-    const placedShip = placedShips.find((entry) => entry.id === shipId);
-    if (placedShip) {
-      placedShips = placedShips.filter((entry) => entry.id !== shipId);
-      selectedShipId = shipId;
-      hoverCell = null;
-      playUiSound('select');
-      render();
-      return;
-    }
-    if (selectedShipId === shipId) {
-      playUiSound('select');
-      return;
-    }
+    const placedShip = placementForType(shipId);
     selectedShipId = shipId;
+    if (placedShip) {
+      orientation = placedShip.orientation;
+      hoverCell = { x: placedShip.x, y: placedShip.y };
+    } else {
+      hoverCell = null;
+    }
     playUiSound('select');
     render();
   }
 
   function rotateOrientation() {
-    if (state && state.own.ready) {
-      return;
-    }
-    orientation = orientation === 'horizontal' ? 'vertical' : 'horizontal';
-    playUiSound('rotate');
-    render();
+    return rotateSelectedShip();
   }
 
   function setOrientation(nextOrientation) {
-    if (state && state.own.ready) {
-      return;
-    }
-    const normalized = nextOrientation === 'vertical' ? 'vertical' : 'horizontal';
-    if (orientation !== normalized) {
-      playUiSound('rotate');
-    }
-    orientation = normalized;
-    render();
+    return rotateSelectedShip(nextOrientation);
   }
 
   function clearPlacement() {
@@ -1888,6 +1913,85 @@
     render();
   }
 
+  function placementForType(type) {
+    return placedShips.map(normalizePlacementShip).find((ship) => ship && ship.type === type) || null;
+  }
+
+  function selectPlacedShip(ship, focusCell = null) {
+    const normalized = normalizePlacementShip(ship);
+    if (!normalized) {
+      return;
+    }
+    selectedShipId = normalized.type;
+    orientation = normalized.orientation;
+    hoverCell = focusCell || { x: normalized.x, y: normalized.y };
+    playUiSound('select');
+    render();
+  }
+
+  function placeShip(type, x, y, nextOrientation = orientation) {
+    const fleetShip = FLEET.find((entry) => entry.id === type);
+    if (!fleetShip) {
+      return false;
+    }
+    const candidate = {
+      type: fleetShip.id,
+      size: fleetShip.length,
+      x: Number(x),
+      y: Number(y),
+      orientation: nextOrientation === 'vertical' ? 'vertical' : 'horizontal'
+    };
+    if (!canPlaceShip(candidate)) {
+      return false;
+    }
+    placedShips = [
+      ...placedShips.map(normalizePlacementShip).filter((entry) => entry && entry.type !== candidate.type),
+      candidate
+    ];
+    orientation = candidate.orientation;
+    const next = FLEET.find((entry) => !placementForType(entry.id));
+    selectedShipId = next ? next.id : candidate.type;
+    const selectedPlacement = placementForType(selectedShipId);
+    hoverCell = selectedPlacement ? { x: selectedPlacement.x, y: selectedPlacement.y } : null;
+    return true;
+  }
+
+  function removeShip(type = selectedShipId) {
+    if (state && state.own.ready) {
+      return;
+    }
+    const existing = placementForType(type);
+    if (!existing) {
+      playUiSound('error');
+      showToast('Välj ett placerat skepp först.');
+      return;
+    }
+    placedShips = placedShips.map(normalizePlacementShip).filter((entry) => entry && entry.type !== existing.type);
+    selectedShipId = existing.type;
+    orientation = existing.orientation;
+    hoverCell = null;
+    playUiSound('click');
+    render();
+  }
+
+  function rotateSelectedShip(nextOrientation = null) {
+    if (state && state.own.ready) {
+      return;
+    }
+    const normalized = nextOrientation
+      ? (nextOrientation === 'vertical' ? 'vertical' : 'horizontal')
+      : (orientation === 'horizontal' ? 'vertical' : 'horizontal');
+    if (orientation !== normalized) {
+      playUiSound('rotate');
+    }
+    orientation = normalized;
+    const selectedPlacement = placementForType(selectedShipId);
+    if (selectedPlacement) {
+      hoverCell = { x: selectedPlacement.x, y: selectedPlacement.y };
+    }
+    render();
+  }
+
   function placeSelectedShip(cellElement) {
     if (state && state.own.ready) {
       return;
@@ -1895,13 +1999,7 @@
     const cell = readCell(cellElement);
     const clickedShip = shipAt(placedShips, cell.x, cell.y);
     if (clickedShip) {
-      const line = straightShipLine(clickedShip.cells, clickedShip.cells.length);
-      placedShips = placedShips.filter((entry) => entry.id !== clickedShip.id);
-      selectedShipId = clickedShip.id;
-      orientation = line ? line.direction : orientation;
-      hoverCell = cell;
-      playUiSound('select');
-      render();
+      selectPlacedShip(clickedShip, cell);
       return;
     }
 
@@ -1909,18 +2007,15 @@
     if (!ship) {
       return;
     }
-    const candidate = placementCandidate(cell, ship);
-    if (!candidate) {
+    hoverCell = cell;
+    const candidate = { type: ship.id, size: ship.length, x: cell.x, y: cell.y, orientation };
+    if (!canPlaceShip(candidate)) {
       playUiSound('error');
       showToast('Skeppet får inte ligga där.');
+      render();
       return;
     }
-    orientation = candidate.direction;
-    placedShips = placedShips.filter((entry) => entry.id !== ship.id);
-    placedShips.push({ id: ship.id, cells: candidate.cells });
-    const next = FLEET.find((entry) => !placedShips.some((shipEntry) => shipEntry.id === entry.id));
-    selectedShipId = next ? next.id : selectedShipId;
-    hoverCell = null;
+    placeShip(ship.id, cell.x, cell.y, orientation);
     playUiSound('place');
     render();
   }
@@ -1929,30 +2024,42 @@
     if (state && state.own.ready) {
       return;
     }
-    const ships = [];
-    for (const ship of FLEET) {
-      let placed = false;
-      for (let attempt = 0; attempt < 400 && !placed; attempt += 1) {
-        const direction = Math.random() > 0.5 ? 'horizontal' : 'vertical';
-        const x = Math.floor(Math.random() * BOARD_SIZE);
-        const y = Math.floor(Math.random() * BOARD_SIZE);
-        const cells = cellsForShip(x, y, ship.length, direction);
-        if (cells.every((cell) => cell.x >= 0 && cell.y >= 0 && cell.x < BOARD_SIZE && cell.y < BOARD_SIZE)
-          && cells.every((cell) => !shipAt(ships, cell.x, cell.y))) {
-          ships.push({ id: ship.id, cells });
-          placed = true;
-        }
-      }
-    }
-    if (ships.length !== FLEET.length) {
+    const ships = autoPlaceFleet();
+    if (!ships.length) {
       playUiSound('error');
       showToast('Auto-placering misslyckades.');
       return;
     }
     placedShips = ships;
-    hoverCell = null;
+    selectedShipId = FLEET[0].id;
+    orientation = ships[0].orientation;
+    hoverCell = { x: ships[0].x, y: ships[0].y };
     playUiSound('place');
     render();
+  }
+
+  function autoPlaceFleet() {
+    const ships = [];
+    for (const ship of FLEET) {
+      let placed = false;
+      for (let attempt = 0; attempt < 500 && !placed; attempt += 1) {
+        const nextOrientation = Math.random() > 0.5 ? 'horizontal' : 'vertical';
+        const maxX = nextOrientation === 'horizontal' ? BOARD_SIZE - ship.length : BOARD_SIZE - 1;
+        const maxY = nextOrientation === 'vertical' ? BOARD_SIZE - ship.length : BOARD_SIZE - 1;
+        const candidate = {
+          type: ship.id,
+          size: ship.length,
+          x: Math.floor(Math.random() * (maxX + 1)),
+          y: Math.floor(Math.random() * (maxY + 1)),
+          orientation: nextOrientation
+        };
+        if (canPlaceShip(candidate, ships)) {
+          ships.push(candidate);
+          placed = true;
+        }
+      }
+    }
+    return ships.length === FLEET.length ? ships : [];
   }
 
   async function submitPlacement() {
@@ -1963,7 +2070,7 @@
       const data = await api('/api/place', {
         code: state.code,
         playerId: state.playerId,
-        ships: placedShips
+        ships: placedShips.map(serializePlacementShip).filter(Boolean)
       });
       state = data.state;
       playUiSound('ready');

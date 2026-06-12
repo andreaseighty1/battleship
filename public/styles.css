@@ -1069,6 +1069,14 @@ input {
   flex-wrap: wrap;
 }
 
+.fleet-dock .ship-state {
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
 .placement-toolbar {
   margin-top: 10px;
 }
@@ -1358,6 +1366,14 @@ button.cell:not(:disabled):hover {
   border-color: rgba(255, 255, 255, 0.28);
 }
 
+.board.has-ship-overlays .cell.is-selected-ship {
+  border-color: rgba(117, 240, 255, 0.86);
+  background: rgba(76, 225, 245, 0.16);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+    0 0 0 2px rgba(76, 225, 245, 0.24);
+}
+
 .cell.is-ship::before {
   content: "";
   position: absolute;
@@ -1459,19 +1475,41 @@ button.cell:not(:disabled):hover {
   opacity: 0.92;
 }
 
+.ship-overlay.is-selected-placement {
+  z-index: 4;
+  filter:
+    drop-shadow(0 0 8px rgba(117, 240, 255, 0.8))
+    drop-shadow(0 8px 9px rgba(0, 0, 0, 0.34));
+}
+
+.ship-overlay.is-selected-placement::after {
+  content: "";
+  position: absolute;
+  inset: 9%;
+  z-index: 2;
+  border: 2px solid rgba(117, 240, 255, 0.92);
+  border-radius: 999px;
+  pointer-events: none;
+  box-shadow: 0 0 12px rgba(76, 225, 245, 0.34);
+}
+
 .cell.is-preview {
   z-index: 4;
-  background: rgba(244, 211, 94, 0.5);
-  border-color: rgba(23, 32, 42, 0.86);
+  background: rgba(42, 157, 143, 0.56);
+  border-color: rgba(117, 240, 255, 0.92);
   box-shadow:
-    inset 0 0 0 2px rgba(255, 255, 255, 0.46),
-    0 0 0 2px rgba(244, 211, 94, 0.38);
+    inset 0 0 0 2px rgba(255, 255, 255, 0.34),
+    0 0 0 2px rgba(76, 225, 245, 0.34),
+    0 0 14px rgba(76, 225, 245, 0.24);
 }
 
 .cell.is-bad-preview {
   z-index: 4;
   background: rgba(209, 73, 91, 0.58);
   border-color: rgba(112, 18, 31, 0.88);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.2),
+    0 0 0 2px rgba(209, 73, 91, 0.26);
 }
 
 .cell.is-hit {
@@ -1696,14 +1734,24 @@ button.cell:not(:disabled):hover {
 }
 
 .ship-button.is-active {
-  border-color: var(--ocean-a);
-  box-shadow: inset 4px 0 0 var(--ocean-a);
+  border-color: rgba(117, 240, 255, 0.88);
+  box-shadow:
+    inset 4px 0 0 #4ce1f5,
+    0 0 16px rgba(76, 225, 245, 0.2);
+  background: rgba(76, 225, 245, 0.14);
 }
 
 .ship-button.is-placed {
-  color: #12685e;
-  border-color: rgba(42, 157, 143, 0.4);
-  background: rgba(42, 157, 143, 0.1);
+  color: #dffcff;
+  border-color: rgba(42, 157, 143, 0.48);
+  background: rgba(42, 157, 143, 0.14);
+}
+
+.ship-button.is-placed.is-active {
+  color: #ffffff;
+  border-color: rgba(117, 240, 255, 0.92);
+  background:
+    linear-gradient(180deg, rgba(30, 143, 156, 0.34), rgba(0, 29, 45, 0.54));
 }
 
 .ship-pips {
@@ -1716,6 +1764,13 @@ button.cell:not(:disabled):hover {
   height: 13px;
   border-radius: 3px;
   background: var(--ship);
+}
+
+.ship-state {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .toolbar {
@@ -2619,7 +2674,7 @@ button.cell:not(:disabled):hover {
 
   .placement-toolbar {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
     margin-top: 6px;
   }
