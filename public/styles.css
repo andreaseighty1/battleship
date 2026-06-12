@@ -308,6 +308,91 @@ input {
   height: clamp(96px, 12vw, 150px);
 }
 
+.title-banner-hud {
+  position: absolute;
+  inset: 12px;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.title-banner-hud > * {
+  pointer-events: auto;
+}
+
+.banner-hud-label {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  border: 1px solid rgba(76, 225, 245, 0.38);
+  border-radius: 8px;
+  padding: 8px 11px;
+  color: #ffffff;
+  background: rgba(0, 13, 24, 0.68);
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.24),
+    inset 0 0 16px rgba(76, 225, 245, 0.08);
+  backdrop-filter: blur(4px);
+}
+
+.banner-hud-label strong {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.92rem;
+  line-height: 1.1;
+}
+
+.banner-hud-label span {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+  min-width: 0;
+  max-width: min(860px, 72%);
+}
+
+.banner-actions .chip,
+.banner-actions .btn,
+.page-console .btn {
+  min-height: 34px;
+  border-color: rgba(76, 225, 245, 0.46);
+  color: #ffffff;
+  background: rgba(0, 13, 24, 0.68);
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.2),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(4px);
+}
+
+.banner-actions .btn.ghost,
+.page-console .btn.ghost {
+  background:
+    linear-gradient(180deg, rgba(8, 72, 94, 0.86), rgba(0, 22, 34, 0.9)),
+    radial-gradient(circle at 50% 0%, rgba(76, 225, 245, 0.2), transparent 68%);
+}
+
+.banner-actions .btn.primary,
+.page-console .btn.primary {
+  border-color: rgba(117, 240, 255, 0.82);
+  color: #051620;
+  background:
+    linear-gradient(180deg, #75f0ff, #38bcd4);
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.24),
+    0 0 18px rgba(76, 225, 245, 0.2);
+}
+
 .home-console {
   display: grid;
   gap: 14px;
@@ -492,6 +577,11 @@ input {
 
 .join-menu-card {
   height: 100%;
+  border-color: rgba(117, 240, 255, 0.88);
+  box-shadow:
+    0 12px 26px rgba(0, 0, 0, 0.24),
+    0 0 20px rgba(76, 225, 245, 0.22),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
 .join-menu-card .home-code-input {
@@ -607,22 +697,60 @@ input {
 .icon-sound::before {
   content: "";
   position: absolute;
-  left: 5px;
-  width: 22px;
-  height: 26px;
+  top: 50%;
+  left: 4px;
+  width: 23px;
+  height: 27px;
   background: #ffffff;
-  clip-path: polygon(0 32%, 34% 32%, 70% 8%, 70% 92%, 34% 68%, 0 68%);
+  clip-path: polygon(0 34%, 32% 34%, 72% 8%, 72% 92%, 32% 66%, 0 66%);
+  transform: translateY(-50%);
 }
 
 .icon-sound::after {
   content: "";
   position: absolute;
-  right: 5px;
-  width: 19px;
-  height: 24px;
-  border: 4px solid #ffffff;
+  top: 50%;
+  right: 9px;
+  width: 13px;
+  height: 20px;
+  border: 3px solid #ffffff;
   border-left: 0;
   border-radius: 0 999px 999px 0;
+  transform: translateY(-50%);
+}
+
+.icon-sound i::before,
+.icon-sound i::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.icon-sound i {
+  position: absolute;
+  inset: 0;
+}
+
+.icon-sound i::before {
+  top: 50%;
+  right: 3px;
+  width: 22px;
+  height: 30px;
+  border: 3px solid #ffffff;
+  border-left: 0;
+  border-radius: 0 999px 999px 0;
+  transform: translateY(-50%);
+}
+
+.icon-sound.is-muted i::after {
+  top: 50%;
+  right: 6px;
+  width: 34px;
+  height: 4px;
+  border-radius: 999px;
+  background: #ffffff;
+  transform: translateY(-50%) rotate(-42deg);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
 }
 
 .home-grid {
@@ -1928,6 +2056,33 @@ button.cell:not(:disabled):hover {
     object-position: left center;
   }
 
+  .compact-banner-card.has-hud .title-banner {
+    height: clamp(138px, 32vw, 178px);
+  }
+
+  .title-banner-hud {
+    inset: 8px;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .banner-hud-label {
+    display: none;
+  }
+
+  .banner-actions {
+    max-width: 100%;
+    justify-content: flex-start;
+    gap: 6px;
+  }
+
+  .banner-actions .chip,
+  .banner-actions .btn {
+    min-height: 30px;
+    padding: 0 9px;
+    font-size: 0.78rem;
+  }
+
   .home-launch-controls {
     grid-template-columns: 1fr;
   }
@@ -2106,6 +2261,29 @@ button.cell:not(:disabled):hover {
 
   .title-screen {
     gap: 10px;
+  }
+
+  .compact-banner-card.has-hud .title-banner {
+    height: 154px;
+  }
+
+  .title-banner-hud {
+    inset: 7px;
+  }
+
+  .banner-actions {
+    gap: 5px;
+  }
+
+  .banner-actions .chip,
+  .banner-actions .btn {
+    min-height: 28px;
+    padding: 0 7px;
+    font-size: 0.72rem;
+  }
+
+  .banner-actions .time-chip {
+    display: none;
   }
 
   .title-banner-card,

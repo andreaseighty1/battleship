@@ -828,11 +828,33 @@
     if (!state || state.status !== 'playing') {
       mobileInfoOpen = false;
     }
+    const topbar = renderTopbar();
+    app.innerHTML = `
+      ${topbar}
+      <main class="screen">
+        ${renderScreen()}
+      </main>
+      <footer class="app-footer">
+        <a class="studio-credit" href="https://42improbableowls.com" target="_blank" rel="noopener">
+          <img src="${OWL_LOGO}" alt="42 Improbable Owls logo">
+          <span>${escapeHtml(COPYRIGHT_NOTICE)}</span>
+        </a>
+      </footer>
+    `;
+    bindEvents();
+    playOutcomeSoundOnce();
+    syncMusic();
+  }
+
+  function renderTopbar() {
+    if ((!state && (activePage === 'home' || activePage === 'scores')) || (state && state.status === 'placing')) {
+      return '';
+    }
     const homeTopbarClass = !state && activePage === 'home' ? 'is-home-topbar' : '';
     const gameTopbarClass = state && state.status === 'playing' ? 'is-game-topbar' : '';
     const mobileTopbarClass = state && (state.status === 'placing' || state.status === 'playing') ? 'is-mobile-topbar' : '';
     const statusTopbarClass = state ? `is-status-${state.status}` : '';
-    app.innerHTML = `
+    return `
       <header class="topbar ${homeTopbarClass} ${gameTopbarClass} ${mobileTopbarClass} ${statusTopbarClass}">
         <div class="brand">
           <img class="brand-logo" src="${OWL_SEAL_LOGO}" alt="42 Improbable Owls">
@@ -853,19 +875,7 @@
           ${state ? '<button class="btn ghost leave-button" data-action="leave">Lämna</button>' : ''}
         </div>
       </header>
-      <main class="screen">
-        ${renderScreen()}
-      </main>
-      <footer class="app-footer">
-        <a class="studio-credit" href="https://42improbableowls.com" target="_blank" rel="noopener">
-          <img src="${OWL_LOGO}" alt="42 Improbable Owls logo">
-          <span>${escapeHtml(COPYRIGHT_NOTICE)}</span>
-        </a>
-      </footer>
     `;
-    bindEvents();
-    playOutcomeSoundOnce();
-    syncMusic();
   }
 
   function renderScreen() {
@@ -920,7 +930,7 @@
               <span>${scores.length ? `${scores.length} matcher` : 'Visa rekord'}</span>
             </button>
             <button class="menu-card" data-action="toggle-audio" type="button" aria-pressed="${audioEnabled ? 'true' : 'false'}">
-              <span class="menu-icon icon-sound" aria-hidden="true"></span>
+              <span class="menu-icon icon-sound ${audioEnabled ? '' : 'is-muted'}" aria-hidden="true"><i></i></span>
               <strong>${audioEnabled ? 'Ljud på' : 'Ljud av'}</strong>
               <span>Musik & effekter</span>
             </button>
@@ -930,13 +940,52 @@
     `;
   }
 
-  function renderTitleBanner(extraClass = '') {
-    const className = ['title-banner-card', extraClass].filter(Boolean).join(' ');
+  function renderTitleBanner(extraClass = '', hud = '') {
+    const className = ['title-banner-card', hud ? 'has-hud' : '', extraClass].filter(Boolean).join(' ');
     return `
       <div class="${className}">
         <img class="title-banner" src="${BANNER_IMAGE}" alt="Sänka Skepp">
+        ${hud}
       </div>
     `;
+  }
+
+  function renderBannerHud(kind) {
+    if (kind === 'scores') {
+      return `
+        <div class="title-banner-hud">
+          <div class="banner-hud-label">
+            <strong>Topplista</strong>
+            <span>Snabbaste vinsterna</span>
+          </div>
+          <div class="banner-actions">
+            <span class="chip status-chip">Topplista</span>
+            <button class="btn ghost" data-action="refresh-scores" type="button">Uppdatera</button>
+            <button class="btn primary" data-action="show-home" type="button">Meny</button>
+            <button class="btn ghost audio-toggle" data-action="toggle-audio" type="button" aria-pressed="${audioEnabled ? 'true' : 'false'}">${audioEnabled ? 'Ljud på' : 'Ljud av'}</button>
+          </div>
+        </div>
+      `;
+    }
+    if (kind === 'placement' && state) {
+      return `
+        <div class="title-banner-hud">
+          <div class="banner-hud-label">
+            <strong>${escapeHtml(state.playerName)}</strong>
+            <span>Placera flottan</span>
+          </div>
+          <div class="banner-actions">
+            <span class="chip code-chip">Kod <strong>${escapeHtml(state.code)}</strong></span>
+            <span class="chip mode-chip">${escapeHtml(modeLabel(state.mode))}</span>
+            <span class="chip status-chip">Placering</span>
+            ${renderTimeChips()}
+            <button class="btn ghost audio-toggle" data-action="toggle-audio" type="button" aria-pressed="${audioEnabled ? 'true' : 'false'}">${audioEnabled ? 'Ljud på' : 'Ljud av'}</button>
+            <button class="btn ghost leave-button" data-action="leave" type="button">Lämna</button>
+          </div>
+        </div>
+      `;
+    }
+    return '';
   }
 
   function renderHomeStatusCard() {
@@ -959,16 +1008,12 @@
   function renderScoresPage() {
     return `
       <section class="scores-page themed-screen">
-        ${renderTitleBanner('compact-banner-card')}
+        ${renderTitleBanner('compact-banner-card', renderBannerHud('scores'))}
         <div class="home-console page-console scores-panel">
           <div class="scores-header">
             <div>
               <h2>Topplista</h2>
               <span>${scores.length ? `${Math.min(scores.length, SCORE_PAGE_LIMIT)} bästa matcher` : 'Inga matcher ännu'}</span>
-            </div>
-            <div class="toolbar scores-toolbar">
-              <button class="btn ghost" data-action="refresh-scores" type="button">Uppdatera</button>
-              <button class="btn primary" data-action="show-home" type="button">Till menyn</button>
             </div>
           </div>
           ${renderScoreList(SCORE_PAGE_LIMIT, 'full')}
@@ -1042,7 +1087,7 @@
       : 'Välj ett skepp';
     return `
       <section class="placement-screen themed-screen">
-        ${renderTitleBanner('compact-banner-card')}
+        ${renderTitleBanner('compact-banner-card', renderBannerHud('placement'))}
         <div class="home-console page-console placement-console">
           <div class="status-grid placement-grid">
             <div class="panel placement-controls-panel">
