@@ -826,6 +826,7 @@
       mobileInfoOpen = false;
     }
     const topbar = renderTopbar();
+    app.className = `app-shell ${viewClass()}`;
     app.innerHTML = `
       ${topbar}
       <main class="screen">
@@ -841,6 +842,13 @@
     bindEvents();
     playOutcomeSoundOnce();
     syncMusic();
+  }
+
+  function viewClass() {
+    if (!state) {
+      return `view-${activePage}`;
+    }
+    return `view-${state.status}`;
   }
 
   function renderTopbar() {
@@ -906,8 +914,8 @@
             <form class="home-menu-form" data-form="create">
               <button class="menu-card primary-card" type="submit">
                 <span class="menu-icon icon-play" aria-hidden="true"></span>
-                <strong>Skapa kod</strong>
-                <span>Online lobby</span>
+                <strong>Spela som värd</strong>
+                <span>Skapa lobby</span>
               </button>
             </form>
             <form class="menu-card join-menu-card" data-form="join">

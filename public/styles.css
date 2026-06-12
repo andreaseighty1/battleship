@@ -36,6 +36,8 @@ html {
   -webkit-text-size-adjust: 100%;
   max-width: 100%;
   overflow-x: hidden;
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: none;
 }
 
 body {
@@ -50,6 +52,8 @@ body {
   background-size: auto, auto, cover;
   background-attachment: fixed;
   overflow-x: hidden;
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: none;
 }
 
 button,
@@ -2319,6 +2323,10 @@ button.cell:not(:disabled):hover {
     padding: 7px;
   }
 
+  .topbar.is-mobile-topbar.is-status-playing {
+    display: none;
+  }
+
   .topbar.is-game-topbar + .screen .game-grid {
     gap: 10px;
   }
@@ -2461,6 +2469,14 @@ button.cell:not(:disabled):hover {
     overflow-x: hidden;
   }
 
+  .app-shell.view-home,
+  .app-shell.view-playing,
+  .app-shell.view-placing {
+    height: 100svh;
+    min-height: 100svh;
+    overflow: hidden;
+  }
+
   .app-footer {
     display: none;
   }
@@ -2470,11 +2486,24 @@ button.cell:not(:disabled):hover {
     overflow-x: hidden;
   }
 
+  .app-shell.view-home .screen,
+  .app-shell.view-playing .screen,
+  .app-shell.view-placing .screen {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
   .title-screen {
     min-height: 100svh;
     gap: 6px;
     align-content: start;
-    padding: clamp(270px, 36svh, 330px) 2px 8px;
+    padding: clamp(238px, 32svh, 302px) 2px 8px;
+  }
+
+  .app-shell.view-home .title-screen {
+    height: 100%;
+    min-height: 0;
   }
 
   .themed-screen {
@@ -2680,6 +2709,11 @@ button.cell:not(:disabled):hover {
     font-size: 0.58rem;
   }
 
+  .menu-card[data-action="create-bot"] .menu-icon,
+  .menu-card[data-action="show-scores"] .menu-icon {
+    display: none;
+  }
+
   .topbar {
     gap: 10px;
     margin-bottom: 10px;
@@ -2717,6 +2751,10 @@ button.cell:not(:disabled):hover {
     box-shadow: 0 8px 18px rgba(23, 32, 42, 0.08);
   }
 
+  .topbar.is-mobile-topbar.is-status-playing {
+    display: none;
+  }
+
   .topbar.is-mobile-topbar .brand {
     display: none;
   }
@@ -2735,6 +2773,12 @@ button.cell:not(:disabled):hover {
   .topbar.is-mobile-topbar + .screen .game-grid,
   .game-grid {
     gap: 8px;
+  }
+
+  .topbar.is-status-playing + .screen .game-grid {
+    height: 100%;
+    align-content: start;
+    overflow: hidden;
   }
 
   .topbar.is-mobile-topbar .room-strip {
@@ -2764,6 +2808,10 @@ button.cell:not(:disabled):hover {
   .panel {
     padding: 8px;
     box-shadow: 0 12px 28px rgba(23, 32, 42, 0.1);
+  }
+
+  .topbar.is-status-playing + .screen .game-grid > .panel {
+    padding: 6px;
   }
 
   .topbar.is-mobile-topbar ~ .app-footer {
@@ -2935,7 +2983,7 @@ button.cell:not(:disabled):hover {
 
   .topbar.is-status-playing + .screen .own-board-panel .board-shell {
     width: 100%;
-    max-width: 278px;
+    max-width: 230px;
     grid-template-columns: 14px minmax(0, 1fr);
     grid-template-rows: 14px auto;
   }
@@ -2945,6 +2993,29 @@ button.cell:not(:disabled):hover {
   }
 
   .topbar.is-status-playing + .screen .own-board-panel .board {
+    padding: 3px;
+  }
+
+  .topbar.is-status-playing + .screen .target-board-panel {
+    justify-items: center;
+  }
+
+  .topbar.is-status-playing + .screen .target-board-panel .board-title {
+    width: min(100%, 292px);
+  }
+
+  .topbar.is-status-playing + .screen .target-board-panel .board-shell {
+    width: 100%;
+    max-width: 292px;
+    grid-template-columns: 14px minmax(0, 1fr);
+    grid-template-rows: 14px auto;
+  }
+
+  .topbar.is-status-playing + .screen .target-board-panel .axis-labels {
+    font-size: 0.5rem;
+  }
+
+  .topbar.is-status-playing + .screen .target-board-panel .board {
     padding: 3px;
   }
 
@@ -3051,10 +3122,10 @@ button.cell:not(:disabled):hover {
   }
 
   .topbar.is-status-playing + .screen .own-board-panel .board-title {
-    width: min(100%, 252px);
+    width: min(100%, 224px);
   }
 
   .topbar.is-status-playing + .screen .own-board-panel .board-shell {
-    max-width: 252px;
+    max-width: 224px;
   }
 }
