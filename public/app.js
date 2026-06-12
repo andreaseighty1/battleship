@@ -1126,9 +1126,12 @@
           </div>
             </div>
             <div class="panel board-wrap placement-board-panel">
-          <div class="board-title">
+          <div class="board-title placement-board-title">
             <h2>Din spelplan</h2>
-            <span class="chip">${locked ? 'Låst' : `${placedShips.length}/${FLEET.length}`}</span>
+            <div class="placement-board-actions">
+              ${renderPlacementFloatControls(locked)}
+              <span class="chip">${locked ? 'Låst' : `${placedShips.length}/${FLEET.length}`}</span>
+            </div>
           </div>
           ${renderBoard('placement')}
             </div>
@@ -1139,9 +1142,8 @@
   }
 
   function renderPlacementFloatControls(locked) {
-    const style = `grid-column: ${BOARD_SIZE - 2} / span 3; grid-row: 1;`;
     return `
-      <div class="placement-float-controls is-docked" style="${style}" aria-label="Placeringskontroller">
+      <div class="placement-float-controls is-docked" aria-label="Placeringskontroller">
         <button class="float-control rotate-control" data-action="rotate" type="button" title="Rotera skepp" aria-label="Rotera skepp" ${locked ? 'disabled' : ''}>
           <span aria-hidden="true">↻</span>
           <strong>Rotera</strong>
@@ -1376,7 +1378,6 @@
     const columns = [];
     const rows = [];
     const overlays = renderShipOverlays(type);
-    const placementControls = type === 'placement' ? renderPlacementFloatControls(Boolean(state && state.own.ready)) : '';
     for (let y = 0; y < BOARD_SIZE; y += 1) {
       rows.push(`<span class="axis-label">${String.fromCharCode(65 + y)}</span>`);
       for (let x = 0; x < BOARD_SIZE; x += 1) {
@@ -1391,7 +1392,7 @@
         <div class="axis-corner" aria-hidden="true"></div>
         <div class="axis-labels axis-cols" aria-hidden="true">${columns.join('')}</div>
         <div class="axis-labels axis-rows" aria-hidden="true">${rows.join('')}</div>
-        <div class="board ${overlays ? 'has-ship-overlays' : ''}" data-board="${type}">${cells.join('')}${overlays}${placementControls}</div>
+        <div class="board ${overlays ? 'has-ship-overlays' : ''}" data-board="${type}">${cells.join('')}${overlays}</div>
       </div>
     `;
   }
@@ -1692,7 +1693,12 @@
       element.addEventListener('click', handleAction);
     });
     document.querySelectorAll('[data-cell="placement"]').forEach((cell) => {
-      cell.addEventListener('pointerenter', () => updatePlacementHover(cell));
+      cell.addEventListener('pointerenter', (event) => {
+        if (event.pointerType && event.pointerType !== 'mouse') {
+          return;
+        }
+        updatePlacementHover(cell);
+      });
       cell.addEventListener('focus', () => updatePlacementHover(cell));
       cell.addEventListener('pointerup', handlePlacementPointer);
       cell.addEventListener('click', handlePlacementClick);
@@ -1867,6 +1873,10 @@
     event.preventDefault();
     event.stopPropagation();
     unlockAudio();
+    if (event.pointerType && event.pointerType !== 'mouse') {
+      previewOrPlaceSelectedShip(event.currentTarget);
+      return;
+    }
     placeSelectedShip(event.currentTarget);
   }
 
@@ -1876,6 +1886,26 @@
     }
     unlockAudio();
     placeSelectedShip(event.currentTarget);
+  }
+
+  function previewOrPlaceSelectedShip(cellElement) {
+    if (state && state.own.ready) {
+      return;
+    }
+    const cell = readCell(cellElement);
+    const clickedShip = shipAt(placedShips, cell.x, cell.y);
+    if (clickedShip) {
+      selectPlacedShip(clickedShip, cell);
+      return;
+    }
+    const wasPreviewed = hoverCell && hoverCell.x === cell.x && hoverCell.y === cell.y;
+    hoverCell = cell;
+    if (!wasPreviewed) {
+      playUiSound('select');
+      render();
+      return;
+    }
+    placeSelectedShip(cellElement);
   }
 
   async function leaveGame() {

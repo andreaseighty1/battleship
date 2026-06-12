@@ -1117,6 +1117,18 @@ input {
   flex: 1 1 92px;
 }
 
+.placement-board-title {
+  align-items: center;
+}
+
+.placement-board-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
 .placement-board-panel {
   position: relative;
   min-width: 0;
@@ -1132,7 +1144,7 @@ input {
   align-items: center;
   gap: 6px;
   max-width: 100%;
-  margin: 6px;
+  margin: 0;
   border: 1px solid rgba(117, 240, 255, 0.72);
   border-radius: 999px;
   padding: 4px;
@@ -2206,6 +2218,10 @@ button.cell:not(:disabled):hover {
     padding-top: clamp(190px, 30vh, 260px);
   }
 
+  .placement-screen.themed-screen {
+    padding-top: 8px;
+  }
+
   .title-banner-card {
     overflow: visible;
     border: 0;
@@ -2377,6 +2393,8 @@ button.cell:not(:disabled):hover {
 
   .placement-controls-panel {
     order: 2;
+    position: static;
+    bottom: auto;
   }
 
   .join-grid {
@@ -2437,25 +2455,30 @@ button.cell:not(:disabled):hover {
   }
 
   .app-shell {
-    width: calc(100% - 8px);
+    width: 100%;
     max-width: 100vw;
-    padding-top: 6px;
-    padding-bottom: 10px;
+    padding: 0 8px 8px;
     overflow-x: hidden;
   }
 
+  .app-footer {
+    display: none;
+  }
+
   .screen {
-    gap: 10px;
+    gap: 8px;
     overflow-x: hidden;
   }
 
   .title-screen {
-    gap: 10px;
+    min-height: 100svh;
+    gap: 6px;
+    align-content: start;
+    padding: clamp(270px, 36svh, 330px) 2px 8px;
   }
 
-  .title-screen,
   .themed-screen {
-    padding-top: clamp(188px, 28vh, 236px);
+    padding-top: 8px;
   }
 
   .home-console,
@@ -2497,93 +2520,164 @@ button.cell:not(:disabled):hover {
   }
 
   .home-console {
-    gap: 8px;
+    gap: 6px;
     padding: 0;
   }
 
   .home-status-card {
-    padding: 8px 10px;
-    background: rgba(0, 13, 24, 0.38);
+    min-height: 38px;
+    padding: 6px 8px;
+    background: rgba(0, 13, 24, 0.24);
     backdrop-filter: none;
   }
 
+  .home-status-card > div {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
   .home-status-card strong {
-    margin-top: 5px;
-    font-size: 0.88rem;
+    margin-top: 0;
+    font-size: 0.76rem;
   }
 
   .online-state {
-    font-size: 0.9rem;
+    gap: 7px;
+    font-size: 0.76rem;
   }
 
   .online-state span {
-    width: 14px;
-    height: 14px;
+    width: 11px;
+    height: 11px;
   }
 
   .radar-mark {
-    width: 44px;
-    height: 44px;
-    border-width: 2px;
+    display: none;
   }
 
-  .radar-mark::before {
-    width: 58px;
-    height: 2px;
+  .mode-notice {
+    display: none;
   }
 
-  .radar-mark::after {
-    width: 2px;
-    height: 58px;
+  .home-launch-controls {
+    gap: 6px;
+  }
+
+  .home-name-input {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 0.88rem;
+  }
+
+  .mode-select {
+    gap: 6px;
+  }
+
+  .home-console .mode-option {
+    min-height: 44px;
+    padding: 6px 8px;
+  }
+
+  .mode-option strong {
+    font-size: 0.82rem;
+  }
+
+  .mode-option span {
+    margin-top: 2px;
+    font-size: 0.66rem;
   }
 
   .home-menu-grid {
-    grid-auto-rows: minmax(70px, auto);
-    gap: 7px;
+    grid-auto-rows: minmax(62px, auto);
+    gap: 6px;
   }
 
   .menu-card {
-    min-height: 70px;
-    gap: 4px;
-    padding: 7px 6px;
+    min-height: 62px;
+    gap: 3px;
+    padding: 6px;
     background:
-      linear-gradient(180deg, rgba(10, 86, 108, 0.58), rgba(0, 19, 31, 0.68)),
-      radial-gradient(circle at 50% 0%, rgba(76, 225, 245, 0.16), transparent 64%);
+      linear-gradient(180deg, rgba(10, 86, 108, 0.48), rgba(0, 19, 31, 0.6)),
+      radial-gradient(circle at 50% 0%, rgba(76, 225, 245, 0.13), transparent 64%);
     backdrop-filter: none;
   }
 
   .join-menu-card {
-    gap: 4px;
+    gap: 3px;
+  }
+
+  .join-menu-card .icon-target {
+    display: none;
   }
 
   .join-menu-card .home-code-input {
     width: 100%;
-    min-height: 26px;
-    font-size: 0.72rem;
+    min-height: 24px;
+    font-size: 0.68rem;
   }
 
   .join-submit {
-    min-height: 24px;
-    padding: 0 10px;
-    font-size: 0.64rem;
+    min-height: 22px;
+    padding: 0 9px;
+    font-size: 0.62rem;
+  }
+
+  button.menu-card[data-action="toggle-audio"] {
+    grid-column: 1 / -1;
   }
 
   .menu-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .icon-play::before {
+    border-top-width: 10px;
+    border-bottom-width: 10px;
+    border-left-width: 16px;
+  }
+
+  .icon-target {
+    border-width: 2px;
+  }
+
+  .icon-target::before {
+    width: 32px;
+    height: 2px;
+  }
+
+  .icon-target::after {
+    width: 2px;
+    height: 32px;
+  }
+
+  .icon-bot::before {
+    border-radius: 5px;
+    padding: 4px 5px;
+    font-size: 0.72rem;
+  }
+
+  .icon-trophy::before {
     width: 24px;
     height: 24px;
+    border-width: 2px;
+    font-size: 0.78rem;
   }
 
   .sound-svg-icon svg {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
   }
 
   .menu-card strong {
-    font-size: 0.74rem;
+    font-size: 0.68rem;
   }
 
   .menu-card span:not(.menu-icon) {
-    font-size: 0.62rem;
+    font-size: 0.58rem;
   }
 
   .topbar {
@@ -2725,14 +2819,24 @@ button.cell:not(:disabled):hover {
     overflow-x: hidden;
   }
 
+  .placement-screen .panel {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .placement-screen .panel::before {
+    display: none;
+  }
+
   .placement-controls-panel {
-    position: sticky;
+    position: static;
     bottom: 0;
-    z-index: 12;
+    z-index: auto;
     min-width: 0;
     max-width: 100%;
     overflow: hidden;
-    padding: 8px;
+    padding: 0;
   }
 
   .placement-board-panel {
@@ -2771,14 +2875,18 @@ button.cell:not(:disabled):hover {
   }
 
   .fleet-dock .ship-button {
-    flex: 0 0 118px;
-    min-height: 50px;
-    padding: 7px;
+    flex: 0 0 108px;
+    min-height: 46px;
+    padding: 6px;
     scroll-snap-align: start;
   }
 
   .fleet-dock .ship-button strong {
-    font-size: 0.72rem;
+    font-size: 0.68rem;
+  }
+
+  .fleet-dock .ship-state {
+    font-size: 0.62rem;
   }
 
   .placement-toolbar {
@@ -2789,15 +2897,15 @@ button.cell:not(:disabled):hover {
   }
 
   .placement-toolbar .btn {
-    min-height: 36px;
+    min-height: 32px;
     flex-basis: auto;
     padding: 0 8px;
-    font-size: 0.78rem;
+    font-size: 0.72rem;
   }
 
   .placement-toolbar .btn.primary {
     grid-column: auto;
-    min-height: 36px;
+    min-height: 32px;
   }
 
   .placement-float-controls {
@@ -2806,15 +2914,15 @@ button.cell:not(:disabled):hover {
   }
 
   .float-control {
-    min-height: 32px;
+    min-height: 30px;
     padding: 0 8px;
-    font-size: 0.74rem;
+    font-size: 0.72rem;
   }
 
   .float-orientation {
-    min-height: 28px;
+    min-height: 26px;
     padding: 0 7px;
-    font-size: 0.68rem;
+    font-size: 0.64rem;
   }
 
   .topbar.is-status-playing + .screen .own-board-panel {
