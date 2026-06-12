@@ -1119,10 +1119,6 @@
           ${locked ? renderTimePanel() : ''}
           <div class="fleet-list fleet-dock">${FLEET.map(renderShipButton).join('')}</div>
           <div class="toolbar placement-toolbar">
-            <div class="segmented direction-toggle" role="group" aria-label="Riktning">
-              <button class="${orientation === 'horizontal' ? 'is-active' : ''}" data-action="orientation" data-orientation="horizontal" type="button" title="Vågrätt" aria-label="Vågrätt" ${locked ? 'disabled' : ''}>↔</button>
-              <button class="${orientation === 'vertical' ? 'is-active' : ''}" data-action="orientation" data-orientation="vertical" type="button" title="Lodrätt" aria-label="Lodrätt" ${locked ? 'disabled' : ''}>↕</button>
-            </div>
             <button class="btn" data-action="auto-place" type="button" ${locked ? 'disabled' : ''}>Auto</button>
             <button class="btn" data-action="clear-place" type="button" ${locked ? 'disabled' : ''}>Rensa</button>
             <button class="btn danger" data-action="remove-ship" type="button" ${selectedPlacement && !locked ? '' : 'disabled'}>Ta bort</button>
@@ -1143,13 +1139,9 @@
   }
 
   function renderPlacementFloatControls(locked) {
-    const selectedPlacement = placementForType(selectedShipId);
-    const anchor = hoverCell || (selectedPlacement ? { x: selectedPlacement.x, y: selectedPlacement.y } : null);
-    const column = anchor ? Math.max(1, Math.min(anchor.x + 1, BOARD_SIZE - 2)) : BOARD_SIZE - 2;
-    const row = anchor ? Math.max(1, Math.min(anchor.y + 1, BOARD_SIZE)) : 1;
-    const style = `grid-column: ${column} / span 3; grid-row: ${row};`;
+    const style = `grid-column: ${BOARD_SIZE - 2} / span 3; grid-row: 1;`;
     return `
-      <div class="placement-float-controls ${anchor ? '' : 'is-docked'}" style="${style}" aria-label="Placeringskontroller">
+      <div class="placement-float-controls is-docked" style="${style}" aria-label="Placeringskontroller">
         <button class="float-control rotate-control" data-action="rotate" type="button" title="Rotera skepp" aria-label="Rotera skepp" ${locked ? 'disabled' : ''}>
           <span aria-hidden="true">↻</span>
           <strong>Rotera</strong>

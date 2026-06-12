@@ -577,11 +577,6 @@ input {
 
 .join-menu-card {
   height: 100%;
-  border-color: rgba(117, 240, 255, 0.88);
-  box-shadow:
-    0 12px 26px rgba(0, 0, 0, 0.24),
-    0 0 20px rgba(76, 225, 245, 0.22),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
 .join-menu-card .home-code-input {
@@ -628,7 +623,7 @@ input {
 }
 
 .primary-card {
-  border-color: rgba(136, 255, 90, 0.68);
+  border-color: rgba(76, 225, 245, 0.68);
 }
 
 .menu-icon {
@@ -1051,6 +1046,16 @@ input {
   color: #ffffff;
 }
 
+.placement-console .ship-button.is-active,
+.placement-console .ship-button.is-placed,
+.placement-console .ship-button.is-placed.is-active,
+.placement-console .ship-button.is-active strong,
+.placement-console .ship-button.is-placed strong,
+.placement-console .ship-button.is-active .ship-state,
+.placement-console .ship-button.is-placed .ship-state {
+  color: #ffffff;
+}
+
 .placement-console .ship-pips span {
   background: rgba(255, 255, 255, 0.58);
 }
@@ -1108,10 +1113,6 @@ input {
   margin-top: 10px;
 }
 
-.placement-toolbar .direction-toggle {
-  flex: 1 1 96px;
-}
-
 .placement-toolbar .btn {
   flex: 1 1 92px;
 }
@@ -1127,10 +1128,11 @@ input {
   z-index: 10;
   display: inline-flex;
   align-self: start;
-  justify-self: start;
+  justify-self: end;
   align-items: center;
   gap: 6px;
   max-width: 100%;
+  margin: 6px;
   border: 1px solid rgba(117, 240, 255, 0.72);
   border-radius: 999px;
   padding: 4px;
@@ -1144,7 +1146,7 @@ input {
 }
 
 .placement-float-controls.is-docked {
-  opacity: 0.92;
+  opacity: 0.96;
 }
 
 .float-control {
@@ -2195,6 +2197,10 @@ button.cell:not(:disabled):hover {
     padding-top: 10px;
   }
 
+  .app-shell::before {
+    display: none;
+  }
+
   .title-screen,
   .themed-screen {
     padding-top: clamp(190px, 30vh, 260px);
@@ -2269,6 +2275,7 @@ button.cell:not(:disabled):hover {
 
   .home-launch-controls {
     grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .home-menu-grid {
@@ -2490,18 +2497,19 @@ button.cell:not(:disabled):hover {
   }
 
   .home-console {
-    gap: 10px;
+    gap: 8px;
     padding: 0;
   }
 
   .home-status-card {
-    padding: 10px;
-    background: rgba(0, 13, 24, 0.54);
-    backdrop-filter: blur(2px);
+    padding: 8px 10px;
+    background: rgba(0, 13, 24, 0.38);
+    backdrop-filter: none;
   }
 
   .home-status-card strong {
-    font-size: 0.98rem;
+    margin-top: 5px;
+    font-size: 0.88rem;
   }
 
   .online-state {
@@ -2514,68 +2522,68 @@ button.cell:not(:disabled):hover {
   }
 
   .radar-mark {
-    width: 52px;
-    height: 52px;
+    width: 44px;
+    height: 44px;
     border-width: 2px;
   }
 
   .radar-mark::before {
-    width: 70px;
+    width: 58px;
     height: 2px;
   }
 
   .radar-mark::after {
     width: 2px;
-    height: 70px;
+    height: 58px;
   }
 
   .home-menu-grid {
-    grid-auto-rows: minmax(82px, 1fr);
-    gap: 8px;
+    grid-auto-rows: minmax(70px, auto);
+    gap: 7px;
   }
 
   .menu-card {
-    min-height: 82px;
-    gap: 6px;
-    padding: 8px 7px;
+    min-height: 70px;
+    gap: 4px;
+    padding: 7px 6px;
     background:
-      linear-gradient(180deg, rgba(10, 86, 108, 0.72), rgba(0, 19, 31, 0.82)),
-      radial-gradient(circle at 50% 0%, rgba(76, 225, 245, 0.2), transparent 64%);
-    backdrop-filter: blur(2px);
+      linear-gradient(180deg, rgba(10, 86, 108, 0.58), rgba(0, 19, 31, 0.68)),
+      radial-gradient(circle at 50% 0%, rgba(76, 225, 245, 0.16), transparent 64%);
+    backdrop-filter: none;
   }
 
   .join-menu-card {
-    gap: 6px;
+    gap: 4px;
   }
 
   .join-menu-card .home-code-input {
     width: 100%;
-    min-height: 30px;
-    font-size: 0.78rem;
+    min-height: 26px;
+    font-size: 0.72rem;
   }
 
   .join-submit {
-    min-height: 26px;
+    min-height: 24px;
     padding: 0 10px;
-    font-size: 0.68rem;
+    font-size: 0.64rem;
   }
 
   .menu-icon {
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
   }
 
   .sound-svg-icon svg {
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
   }
 
   .menu-card strong {
-    font-size: 0.82rem;
+    font-size: 0.74rem;
   }
 
   .menu-card span:not(.menu-icon) {
-    font-size: 0.68rem;
+    font-size: 0.62rem;
   }
 
   .topbar {
@@ -2778,10 +2786,6 @@ button.cell:not(:disabled):hover {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
     margin-top: 6px;
-  }
-
-  .placement-toolbar .direction-toggle {
-    display: none;
   }
 
   .placement-toolbar .btn {
