@@ -927,7 +927,7 @@
               <span>${scores.length ? `${scores.length} matcher` : 'Visa rekord'}</span>
             </button>
             <button class="menu-card" data-action="toggle-audio" type="button" aria-pressed="${audioEnabled ? 'true' : 'false'}">
-              <span class="menu-icon icon-sound ${audioEnabled ? '' : 'is-muted'}" aria-hidden="true"><i></i></span>
+              ${renderSoundIcon(audioEnabled)}
               <strong>${audioEnabled ? 'Ljud på' : 'Ljud av'}</strong>
               <span>Musik & effekter</span>
             </button>
@@ -983,6 +983,26 @@
       `;
     }
     return '';
+  }
+
+  function renderSoundIcon(enabled) {
+    return `
+      <span class="menu-icon sound-svg-icon" aria-hidden="true">
+        ${enabled ? `
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M3 9v6h4l5 4V5L7 9H3z"></path>
+            <path d="M16 8.5a5 5 0 0 1 0 7"></path>
+            <path d="M18.5 6a8 8 0 0 1 0 12"></path>
+          </svg>
+        ` : `
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M3 9v6h4l5 4V5L7 9H3z"></path>
+            <path d="M16 9l5 5"></path>
+            <path d="M21 9l-5 5"></path>
+          </svg>
+        `}
+      </span>
+    `;
   }
 
   function renderHomeStatusCard() {
@@ -1115,7 +1135,6 @@
             <span class="chip">${locked ? 'Låst' : `${placedShips.length}/${FLEET.length}`}</span>
           </div>
           ${renderBoard('placement')}
-          ${renderPlacementFloatControls(locked)}
             </div>
           </div>
         </div>
@@ -1124,10 +1143,18 @@
   }
 
   function renderPlacementFloatControls(locked) {
+    const selectedPlacement = placementForType(selectedShipId);
+    const anchor = hoverCell || (selectedPlacement ? { x: selectedPlacement.x, y: selectedPlacement.y } : null);
+    const column = anchor ? Math.max(1, Math.min(anchor.x + 1, BOARD_SIZE - 2)) : BOARD_SIZE - 2;
+    const row = anchor ? Math.max(1, Math.min(anchor.y + 1, BOARD_SIZE)) : 1;
+    const style = `grid-column: ${column} / span 3; grid-row: ${row};`;
     return `
-      <div class="placement-float-controls" aria-label="Placeringskontroller">
-        <button class="float-control rotate-control" data-action="rotate" type="button" title="Rotera skepp" aria-label="Rotera skepp" ${locked ? 'disabled' : ''}>↻</button>
-        <span class="float-orientation" aria-hidden="true">${orientation === 'horizontal' ? '↔' : '↕'}</span>
+      <div class="placement-float-controls ${anchor ? '' : 'is-docked'}" style="${style}" aria-label="Placeringskontroller">
+        <button class="float-control rotate-control" data-action="rotate" type="button" title="Rotera skepp" aria-label="Rotera skepp" ${locked ? 'disabled' : ''}>
+          <span aria-hidden="true">↻</span>
+          <strong>Rotera</strong>
+        </button>
+        <span class="float-orientation" aria-hidden="true">${orientation === 'horizontal' ? 'Vågrätt' : 'Lodrätt'}</span>
       </div>
     `;
   }
@@ -1357,6 +1384,7 @@
     const columns = [];
     const rows = [];
     const overlays = renderShipOverlays(type);
+    const placementControls = type === 'placement' ? renderPlacementFloatControls(Boolean(state && state.own.ready)) : '';
     for (let y = 0; y < BOARD_SIZE; y += 1) {
       rows.push(`<span class="axis-label">${String.fromCharCode(65 + y)}</span>`);
       for (let x = 0; x < BOARD_SIZE; x += 1) {
@@ -1371,7 +1399,7 @@
         <div class="axis-corner" aria-hidden="true"></div>
         <div class="axis-labels axis-cols" aria-hidden="true">${columns.join('')}</div>
         <div class="axis-labels axis-rows" aria-hidden="true">${rows.join('')}</div>
-        <div class="board ${overlays ? 'has-ship-overlays' : ''}" data-board="${type}">${cells.join('')}${overlays}</div>
+        <div class="board ${overlays ? 'has-ship-overlays' : ''}" data-board="${type}">${cells.join('')}${overlays}${placementControls}</div>
       </div>
     `;
   }
