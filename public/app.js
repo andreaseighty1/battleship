@@ -27,7 +27,7 @@
     submarine: assetUrl('gfx/ship_3_squares_v2.png'),
     destroyer: assetUrl('gfx/ship_2_squares_v1.png')
   };
-  const TITLE_IMAGE = assetUrl('gfx/battleship_logo_swe.png');
+  const BANNER_IMAGE = assetUrl('gfx/battleship_banner.png');
   const OWL_LOGO = assetUrl('gfx/42IO-logo-A-light.svg');
   const OWL_SEAL_LOGO = assetUrl('gfx/42IO-logo-A-light.svg');
   const MUSIC_ASSETS = {
@@ -811,7 +811,7 @@
   }
 
   function statusLabel() {
-    if (!state) return activePage === 'scores' ? 'Topplista' : 'Start';
+    if (!state) return activePage === 'scores' ? 'Topplista' : 'Meny';
     if (state.status === 'waiting') return 'Väntar';
     if (state.status === 'placing') return 'Placering';
     if (state.status === 'playing') return state.turn && state.turn.isYou ? 'Din tur' : 'Motståndarens tur';
@@ -828,11 +828,12 @@
     if (!state || state.status !== 'playing') {
       mobileInfoOpen = false;
     }
+    const homeTopbarClass = !state && activePage === 'home' ? 'is-home-topbar' : '';
     const gameTopbarClass = state && state.status === 'playing' ? 'is-game-topbar' : '';
     const mobileTopbarClass = state && (state.status === 'placing' || state.status === 'playing') ? 'is-mobile-topbar' : '';
     const statusTopbarClass = state ? `is-status-${state.status}` : '';
     app.innerHTML = `
-      <header class="topbar ${gameTopbarClass} ${mobileTopbarClass} ${statusTopbarClass}">
+      <header class="topbar ${homeTopbarClass} ${gameTopbarClass} ${mobileTopbarClass} ${statusTopbarClass}">
         <div class="brand">
           <img class="brand-logo" src="${OWL_SEAL_LOGO}" alt="42 Improbable Owls">
           <div>
@@ -847,7 +848,7 @@
           ${renderTimeChips()}
           ${state && state.turn ? `<span class="chip turn-chip ${state.turn.isYou ? 'is-turn' : ''}">${escapeHtml(state.turn.playerName)}</span>` : ''}
           ${!state && activePage !== 'scores' ? '<button class="btn ghost" data-action="show-scores" type="button">Topplista</button>' : ''}
-          ${!state && activePage === 'scores' ? '<button class="btn ghost" data-action="show-home" type="button">Start</button>' : ''}
+          ${!state && activePage === 'scores' ? '<button class="btn ghost" data-action="show-home" type="button">Meny</button>' : ''}
           <button class="btn ghost audio-toggle" data-action="toggle-audio" type="button" aria-pressed="${audioEnabled ? 'true' : 'false'}">${audioEnabled ? 'Ljud på' : 'Ljud av'}</button>
           ${state ? '<button class="btn ghost leave-button" data-action="leave">Lämna</button>' : ''}
         </div>
@@ -885,34 +886,67 @@
 
   function renderHome() {
     return `
-      <section class="home-grid">
-        <div class="panel home-actions">
-          <form class="form-grid" data-form="create">
-            <h2>Skapa rum</h2>
-            <input name="name" maxlength="24" placeholder="Ditt namn" autocomplete="nickname" required value="${escapeHtml(playerNameDraft)}">
+      <section class="title-screen">
+        <div class="title-banner-card">
+          <img class="title-banner" src="${BANNER_IMAGE}" alt="Sänka Skepp">
+        </div>
+        <div class="home-console">
+          ${renderHomeStatusCard()}
+          <div class="home-launch-controls">
+            <input class="home-name-input" name="name" maxlength="24" placeholder="Ditt namn" autocomplete="nickname" value="${escapeHtml(playerNameDraft)}">
             ${renderModeSelector()}
-            <button class="btn primary" type="submit">Skapa kod</button>
-            <button class="btn ghost bot-create" data-action="create-bot" type="button">Spela mot datorn</button>
-          </form>
-          <form class="form-grid" data-form="join">
-            <h2>Gå med</h2>
-            <div class="join-grid">
-              <input name="name" maxlength="24" placeholder="Ditt namn" autocomplete="nickname" required value="${escapeHtml(playerNameDraft)}">
-              <input name="code" maxlength="7" placeholder="Kod" autocomplete="off">
-            </div>
-            <button class="btn accent" type="submit">Anslut</button>
-          </form>
-          <div>
-            <h2>Topplista</h2>
-            ${renderScoreList(SCORE_PREVIEW_LIMIT, 'compact')}
-            <button class="btn ghost score-link" data-action="show-scores" type="button">Visa hela topplistan</button>
+          </div>
+          <div class="home-menu-grid">
+            <form class="home-menu-form" data-form="create">
+              <button class="menu-card primary-card" type="submit">
+                <span class="menu-icon icon-play" aria-hidden="true"></span>
+                <strong>Skapa kod</strong>
+                <span>Online lobby</span>
+              </button>
+            </form>
+            <form class="home-menu-form join-menu-form" data-form="join">
+              <input class="home-code-input" name="code" maxlength="7" placeholder="Kod" autocomplete="off">
+              <button class="menu-card" type="submit">
+                <span class="menu-icon icon-target" aria-hidden="true"></span>
+                <strong>Gå med</strong>
+                <span>Anslut med kod</span>
+              </button>
+            </form>
+            <button class="menu-card" data-action="create-bot" type="button">
+              <span class="menu-icon icon-bot" aria-hidden="true"></span>
+              <strong>Mot datorn</strong>
+              <span>Classic</span>
+            </button>
+            <button class="menu-card" data-action="show-scores" type="button">
+              <span class="menu-icon icon-trophy" aria-hidden="true"></span>
+              <strong>Topplista</strong>
+              <span>${scores.length ? `${scores.length} matcher` : 'Visa rekord'}</span>
+            </button>
+            <button class="menu-card" data-action="toggle-audio" type="button" aria-pressed="${audioEnabled ? 'true' : 'false'}">
+              <span class="menu-icon icon-sound" aria-hidden="true"></span>
+              <strong>${audioEnabled ? 'Ljud på' : 'Ljud av'}</strong>
+              <span>Musik & effekter</span>
+            </button>
           </div>
         </div>
-        <div class="hero-board title-board" aria-hidden="true">
-          <img class="title-logo" src="${TITLE_IMAGE}" alt="">
-          <div class="title-waterline"></div>
-        </div>
       </section>
+    `;
+  }
+
+  function renderHomeStatusCard() {
+    const today = new Date().toDateString();
+    const todayCount = scores.filter((score) => {
+      const finishedAt = Number(score.finishedAt || 0);
+      return finishedAt && new Date(finishedAt).toDateString() === today;
+    }).length;
+    return `
+      <div class="home-status-card" aria-live="polite">
+        <div>
+          <span class="online-state"><span aria-hidden="true"></span>Online</span>
+          <strong>${todayCount} matcher spelade idag</strong>
+        </div>
+        <span class="radar-mark" aria-hidden="true"></span>
+      </div>
     `;
   }
 
@@ -927,7 +961,7 @@
             </div>
             <div class="toolbar scores-toolbar">
               <button class="btn ghost" data-action="refresh-scores" type="button">Uppdatera</button>
-              <button class="btn primary" data-action="show-home" type="button">Till start</button>
+              <button class="btn primary" data-action="show-home" type="button">Till menyn</button>
             </div>
           </div>
           ${renderScoreList(SCORE_PAGE_LIMIT, 'full')}
@@ -1553,7 +1587,7 @@
     event.preventDefault();
     unlockAudio();
     const form = new FormData(event.currentTarget);
-    const name = String(form.get('name') || '').trim();
+    const name = String(form.get('name') || playerNameDraft || '').trim();
     if (!name) {
       playUiSound('error');
       showToast('Skriv ett namn först.');
@@ -1580,7 +1614,7 @@
     event.preventDefault();
     unlockAudio();
     const form = new FormData(event.currentTarget);
-    const name = String(form.get('name') || '').trim();
+    const name = String(form.get('name') || playerNameDraft || '').trim();
     if (!name) {
       playUiSound('error');
       showToast('Skriv ett namn först.');
