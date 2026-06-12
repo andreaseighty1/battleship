@@ -18,6 +18,7 @@
   --shadow: 0 18px 45px rgba(23, 32, 42, 0.12);
   --water-image: url("assets/gfx/water_bg.png");
   --mobile-bg-image: url("assets/gfx/battleship_mobile_bg.png");
+  --mobile-empty-bg-image: url("assets/gfx/battleship_mobile_empty_bg.png");
   --hit-burst: url("assets/gfx/explosion hit.png");
   --miss-splash: url("assets/gfx/miss_water_splash.png");
   --hit-marker: url("assets/gfx/red_hit_marker.png");
@@ -1133,6 +1134,20 @@ input {
   min-width: 0;
 }
 
+.placement-board-body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.placement-rotate-rail {
+  display: grid;
+  justify-items: start;
+  padding-top: 36px;
+}
+
 .placement-board-panel {
   position: relative;
   min-width: 0;
@@ -2202,10 +2217,19 @@ button.cell:not(:disabled):hover {
   body {
     background:
       linear-gradient(180deg, rgba(1, 8, 14, 0.05), rgba(1, 8, 14, 0.48)),
+      var(--mobile-empty-bg-image);
+    background-size: cover;
+    background-position: center top;
+    background-attachment: scroll;
+  }
+
+  body:has(.app-shell.view-home) {
+    background:
+      linear-gradient(180deg, rgba(1, 8, 14, 0.05), rgba(1, 8, 14, 0.48)),
       var(--mobile-bg-image);
     background-size: cover;
     background-position: center top;
-    background-attachment: fixed;
+    background-attachment: scroll;
   }
 
   .app-shell {
@@ -2454,12 +2478,22 @@ button.cell:not(:disabled):hover {
 
 @media (max-width: 520px) {
   body {
+    min-height: 100svh;
+    background:
+      linear-gradient(180deg, rgba(1, 8, 14, 0.04), rgba(1, 8, 14, 0.54)),
+      var(--mobile-empty-bg-image);
+    background-size: cover;
+    background-position: center top;
+    background-attachment: scroll;
+  }
+
+  body:has(.app-shell.view-home) {
     background:
       linear-gradient(180deg, rgba(1, 8, 14, 0.04), rgba(1, 8, 14, 0.54)),
       var(--mobile-bg-image);
     background-size: cover;
     background-position: center top;
-    background-attachment: fixed;
+    background-attachment: scroll;
   }
 
   .app-shell {
@@ -2475,6 +2509,10 @@ button.cell:not(:disabled):hover {
     height: 100svh;
     min-height: 100svh;
     overflow: hidden;
+  }
+
+  .app-shell.view-placing {
+    padding-inline: 6px;
   }
 
   .app-footer {
@@ -2508,6 +2546,16 @@ button.cell:not(:disabled):hover {
 
   .themed-screen {
     padding-top: 8px;
+  }
+
+  .app-shell.view-placing .placement-screen,
+  .app-shell.view-placing .placement-console {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .placement-screen .title-banner-card.has-hud {
+    display: none;
   }
 
   .home-console,
@@ -2860,11 +2908,14 @@ button.cell:not(:disabled):hover {
   }
 
   .placement-grid {
-    gap: 8px;
+    gap: 6px;
     grid-template-columns: minmax(0, 1fr);
     width: 100%;
     max-width: 100%;
+    height: 100%;
+    align-content: start;
     overflow-x: hidden;
+    overflow-y: hidden;
   }
 
   .placement-screen .panel {
@@ -2878,6 +2929,7 @@ button.cell:not(:disabled):hover {
   }
 
   .placement-controls-panel {
+    order: 1;
     position: static;
     bottom: 0;
     z-index: auto;
@@ -2888,72 +2940,100 @@ button.cell:not(:disabled):hover {
   }
 
   .placement-board-panel {
+    order: 2;
     min-width: 0;
     max-width: 100%;
     overflow: hidden;
     justify-items: stretch;
+    padding-top: 2px;
   }
 
   .placement-board-panel .board-shell {
     width: 100%;
-    max-width: 100%;
+    max-width: min(100%, 320px);
+    justify-self: center;
+    grid-template-columns: 16px minmax(0, 1fr);
+    grid-template-rows: 16px auto;
   }
 
   .placement-header {
-    margin-bottom: 6px;
+    margin-bottom: 4px;
   }
 
   .placement-header span:not(.chip) {
-    font-size: 0.76rem;
-  }
-
-  .fleet-dock {
-    display: flex;
-    grid-template-columns: none;
-    gap: 6px;
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-    overscroll-behavior-x: contain;
-    padding-bottom: 2px;
-    scroll-snap-type: x proximity;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .fleet-dock .ship-button {
-    flex: 0 0 108px;
-    min-height: 46px;
-    padding: 6px;
-    scroll-snap-align: start;
-  }
-
-  .fleet-dock .ship-button strong {
     font-size: 0.68rem;
   }
 
+  .fleet-dock {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: visible;
+    padding-bottom: 0;
+    scroll-snap-type: none;
+  }
+
+  .fleet-dock .ship-button {
+    min-width: 0;
+    min-height: 42px;
+    padding: 5px 3px;
+    scroll-snap-align: unset;
+  }
+
+  .fleet-dock .ship-button strong {
+    font-size: 0.56rem;
+    overflow-wrap: anywhere;
+  }
+
   .fleet-dock .ship-state {
-    font-size: 0.62rem;
+    font-size: 0.52rem;
+  }
+
+  .fleet-dock .ship-pips {
+    justify-content: center;
+    gap: 2px;
+  }
+
+  .fleet-dock .ship-pips span {
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
   }
 
   .placement-toolbar {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
-    margin-top: 6px;
+    gap: 4px;
+    margin-top: 4px;
   }
 
   .placement-toolbar .btn {
-    min-height: 32px;
+    min-height: 30px;
     flex-basis: auto;
-    padding: 0 8px;
-    font-size: 0.72rem;
+    padding: 0 4px;
+    font-size: 0.66rem;
   }
 
   .placement-toolbar .btn.primary {
     grid-column: auto;
-    min-height: 32px;
+    min-height: 30px;
+  }
+
+  .placement-board-title {
+    min-height: 26px;
+  }
+
+  .placement-board-body {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .placement-rotate-rail {
+    justify-self: end;
+    padding-top: 0;
   }
 
   .placement-float-controls {

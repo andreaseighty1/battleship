@@ -1136,12 +1136,14 @@
             <div class="panel board-wrap placement-board-panel">
           <div class="board-title placement-board-title">
             <h2>Din spelplan</h2>
-            <div class="placement-board-actions">
-              ${renderPlacementFloatControls(locked)}
-              <span class="chip">${locked ? 'Låst' : `${placedShips.length}/${FLEET.length}`}</span>
-            </div>
+            <span class="chip">${locked ? 'Låst' : `${placedShips.length}/${FLEET.length}`}</span>
           </div>
-          ${renderBoard('placement')}
+          <div class="placement-board-body">
+            <div class="placement-rotate-rail">
+              ${renderPlacementFloatControls(locked)}
+            </div>
+            ${renderBoard('placement')}
+          </div>
             </div>
           </div>
         </div>
