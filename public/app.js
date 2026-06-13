@@ -1736,6 +1736,9 @@
     document.querySelectorAll('[data-action]').forEach((element) => {
       element.addEventListener('click', handleAction);
     });
+    document.querySelectorAll('.scores-panel').forEach((panel) => {
+      panel.addEventListener('wheel', handleScoresWheel, { passive: false });
+    });
     document.querySelectorAll('[data-cell="placement"]').forEach((cell) => {
       cell.addEventListener('pointerenter', (event) => {
         if (event.pointerType && event.pointerType !== 'mouse') {
@@ -1757,6 +1760,22 @@
         render();
       });
     }
+  }
+
+  function handleScoresWheel(event) {
+    const panel = event.currentTarget;
+    if (!panel || panel.scrollHeight <= panel.clientHeight) {
+      return;
+    }
+    const factor = event.deltaMode === 1 ? 16 : (event.deltaMode === 2 ? panel.clientHeight : 1);
+    const delta = event.deltaY * factor;
+    const atTop = panel.scrollTop <= 0;
+    const atBottom = panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 1;
+    if ((delta < 0 && atTop) || (delta > 0 && atBottom)) {
+      return;
+    }
+    event.preventDefault();
+    panel.scrollTop += delta;
   }
 
   async function handleCreate(event) {

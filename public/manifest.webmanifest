@@ -1,0 +1,19 @@
+{
+  "name": "Sänka Skepp",
+  "short_name": "Sänka Skepp",
+  "description": "Sänka Skepp online med klassiskt och arkadläge.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#00131f",
+  "theme_color": "#00131f",
+  "icons": [
+    {
+      "src": "/assets/gfx/42io-mark-light.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

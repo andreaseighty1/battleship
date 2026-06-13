@@ -582,6 +582,7 @@ input {
 
 .join-menu-card {
   height: 100%;
+  cursor: pointer;
 }
 
 .join-menu-card .home-code-input {
@@ -606,12 +607,20 @@ input {
   text-transform: uppercase;
 }
 
-.menu-card:not(:disabled):hover {
+.menu-card:not(:disabled):hover,
+.join-menu-card:hover,
+.join-menu-card:focus-within {
   border-color: rgba(117, 240, 255, 0.95);
   box-shadow:
     0 14px 28px rgba(0, 0, 0, 0.27),
     0 0 18px rgba(76, 225, 245, 0.16),
     inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.join-submit:hover,
+.join-submit:focus-visible {
+  border-color: rgba(117, 240, 255, 0.9);
+  background: rgba(76, 225, 245, 0.24);
 }
 
 .menu-card strong {
@@ -1202,6 +1211,7 @@ input {
 .placement-rotate-rail {
   display: grid;
   justify-items: start;
+  width: 168px;
   padding-top: 36px;
 }
 
@@ -1219,6 +1229,7 @@ input {
   justify-self: end;
   align-items: center;
   gap: 6px;
+  width: 168px;
   max-width: 100%;
   margin: 0;
   border: 1px solid rgba(117, 240, 255, 0.72);
@@ -1243,6 +1254,7 @@ input {
   justify-content: center;
   gap: 5px;
   width: auto;
+  min-width: 82px;
   min-height: 34px;
   border-radius: 999px;
   padding: 0 10px;
@@ -1261,6 +1273,8 @@ input {
 .float-orientation {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-width: 62px;
   min-height: 30px;
   border-radius: 999px;
   padding: 0 9px;
@@ -2085,6 +2099,26 @@ button.cell:not(:disabled):hover {
 
 .scores-panel.page-console {
   width: min(100%, 1080px);
+  max-height: min(720px, calc(100vh - 156px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(76, 225, 245, 0.72) rgba(0, 13, 24, 0.56);
+}
+
+.scores-panel.page-console::-webkit-scrollbar {
+  width: 10px;
+}
+
+.scores-panel.page-console::-webkit-scrollbar-track {
+  background: rgba(0, 13, 24, 0.56);
+  border-radius: 999px;
+}
+
+.scores-panel.page-console::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(0, 13, 24, 0.56);
+  border-radius: 999px;
+  background: rgba(76, 225, 245, 0.72);
 }
 
 .scores-header {
@@ -3235,11 +3269,13 @@ button.cell:not(:disabled):hover {
 
   .placement-rotate-rail {
     justify-self: end;
+    width: auto;
     padding-top: 0;
   }
 
   .placement-float-controls {
     gap: 4px;
+    width: auto;
     padding: 3px;
   }
 
@@ -3302,7 +3338,9 @@ button.cell:not(:disabled):hover {
   }
 
   .app-shell:is(.view-playing, .view-finished, .view-abandoned, .view-expired) .screen .game-grid {
-    gap: 12px;
+    --own-board-size: min(calc(42svh - 64px), calc(100vw - 22px), 230px);
+    --target-board-size: min(calc(55svh - 80px), calc(100vw - 22px), 300px);
+    gap: clamp(6px, 1.4svh, 12px);
     align-content: start;
   }
 
@@ -3312,29 +3350,29 @@ button.cell:not(:disabled):hover {
   }
 
   .app-shell:is(.view-playing, .view-finished, .view-abandoned, .view-expired) .screen .game-grid > .own-board-panel .board-title {
-    width: min(100%, 238px);
+    width: min(100%, var(--own-board-size));
   }
 
   .app-shell:is(.view-playing, .view-finished, .view-abandoned, .view-expired) .screen .game-grid > .own-board-panel .board-shell {
     width: 100%;
-    max-width: min(calc(100vw - 22px), 238px);
+    max-width: var(--own-board-size);
     grid-template-columns: 14px minmax(0, 1fr);
     grid-template-rows: 14px auto;
   }
 
   .app-shell:is(.view-playing, .view-finished, .view-abandoned, .view-expired) .screen .game-grid > .target-board-panel .board-title {
-    width: min(100%, 308px);
+    width: min(100%, var(--target-board-size));
   }
 
   .app-shell:is(.view-playing, .view-finished, .view-abandoned, .view-expired) .screen .game-grid > .target-board-panel .board-shell {
     width: 100%;
-    max-width: min(calc(100vw - 22px), 308px);
+    max-width: var(--target-board-size);
     grid-template-columns: 14px minmax(0, 1fr);
     grid-template-rows: 14px auto;
   }
 
   .mobile-end-actions {
-    width: min(100%, 308px);
+    width: min(100%, var(--target-board-size));
     justify-self: start;
   }
 
@@ -3440,16 +3478,21 @@ button.cell:not(:disabled):hover {
     font-size: 0.58rem;
   }
 
+  .app-shell:is(.view-playing, .view-finished, .view-abandoned, .view-expired) .screen .game-grid {
+    --own-board-size: min(calc(41svh - 62px), calc(100vw - 20px), 220px);
+    --target-board-size: min(calc(53svh - 75px), calc(100vw - 20px), 286px);
+  }
+
   .topbar.is-status-playing + .screen .own-board-panel .board-title {
-    width: min(100%, 228px);
+    width: min(100%, var(--own-board-size));
   }
 
   .topbar.is-status-playing + .screen .own-board-panel .board-shell {
-    max-width: min(calc(100vw - 20px), 228px);
+    max-width: var(--own-board-size);
   }
 
   .topbar.is-status-playing + .screen .target-board-panel .board-title,
   .topbar.is-status-playing + .screen .target-board-panel .board-shell {
-    max-width: min(calc(100vw - 20px), 292px);
+    max-width: var(--target-board-size);
   }
 }
