@@ -304,6 +304,10 @@ function recordHighScore(game, winner) {
   if (game.score) {
     return game.score;
   }
+  if (game.players.some(isBotPlayer)) {
+    game.finishedAt = game.finishedAt || Date.now();
+    return null;
+  }
 
   const opponent = getOpponent(game, winner.id);
   const finishedAt = Date.now();

@@ -176,6 +176,27 @@ test('classic bot game auto-places and fires back', () => {
   assert.equal(afterExchange.own.incomingShots.length, 1);
 });
 
+test('bot games do not record highscores', () => {
+  const store = new Map();
+  const host = createBotGame('Ada', store);
+  const hostFleet = fleetFromRows(0);
+  const bot = host.game.players.find((player) => player.isBot);
+  bot.ships = fleetFromRows(5);
+
+  placeFleet(host.code, host.playerId, hostFleet, store);
+  const allBotShipCells = bot.ships.flatMap((ship) => ship.cells);
+
+  for (const cell of allBotShipCells) {
+    performAction(host.code, host.playerId, { ability: 'shot', x: cell.x, y: cell.y }, store);
+  }
+
+  const hostState = serializeGame(host.game, host.playerId);
+  assert.equal(hostState.status, 'finished');
+  assert.equal(hostState.winner.isYou, true);
+  assert.equal(hostState.score, null);
+  assert.equal(getHighScores().some((score) => score.code === host.code), false);
+});
+
 test('leaving a game abandons it for the opponent without recording a score', () => {
   const store = new Map();
   const host = createGame('Ada', store);

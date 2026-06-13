@@ -98,6 +98,7 @@
   let selectedMode = 'classic';
   let activePage = 'home';
   let mobileInfoOpen = false;
+  let mobileLogOpen = false;
   let playerNameDraft = readPlayerName();
   let toastTimer = null;
   let scores = [];
@@ -824,7 +825,9 @@
     }
     if (!state || state.status !== 'playing') {
       mobileInfoOpen = false;
+      mobileLogOpen = false;
     }
+    const sidePanelScrollTop = document.querySelector('.side-panel.is-open')?.scrollTop || 0;
     const topbar = renderTopbar();
     app.className = `app-shell ${viewClass()}`;
     app.innerHTML = `
@@ -840,6 +843,15 @@
       </footer>
     `;
     bindEvents();
+    if (mobileInfoOpen && sidePanelScrollTop) {
+      const sidePanel = document.querySelector('.side-panel.is-open');
+      if (sidePanel) {
+        sidePanel.scrollTop = sidePanelScrollTop;
+        requestAnimationFrame(() => {
+          sidePanel.scrollTop = sidePanelScrollTop;
+        });
+      }
+    }
     playOutcomeSoundOnce();
     syncMusic();
   }
@@ -1198,8 +1210,10 @@
           ${renderStatsPanel()}
           <h3>Spelare</h3>
           ${renderPlayers()}
-          <h3 style="margin-top: 16px;">Logg</h3>
-          ${renderLog()}
+          <button class="btn ghost log-toggle" data-action="toggle-log" type="button" aria-expanded="${mobileLogOpen ? 'true' : 'false'}">
+            ${mobileLogOpen ? 'Dölj logg' : 'Visa logg'}
+          </button>
+          ${mobileLogOpen ? `<div class="log-drawer"><h3>Logg</h3>${renderLog()}</div>` : ''}
           <div class="mobile-side-actions">
             <button class="btn ghost audio-toggle" data-action="toggle-audio" type="button" aria-pressed="${audioEnabled ? 'true' : 'false'}">${audioEnabled ? 'Ljud på' : 'Ljud av'}</button>
             <button class="btn ghost leave-button" data-action="leave" type="button">Lämna</button>
@@ -1796,6 +1810,7 @@
     if (action === 'create-bot') return createBotGame();
     if (action === 'toggle-mobile-info') return toggleMobileInfo();
     if (action === 'close-mobile-info') return closeMobileInfo();
+    if (action === 'toggle-log') return toggleLog();
     if (action === 'select-ship') return selectShip(event.currentTarget.dataset.ship);
     if (action === 'orientation') return setOrientation(event.currentTarget.dataset.orientation);
     if (action === 'rotate') return rotateOrientation();
@@ -1862,9 +1877,16 @@
   function closeMobileInfo() {
     if (mobileInfoOpen) {
       mobileInfoOpen = false;
+      mobileLogOpen = false;
       playUiSound('click');
       render();
     }
+  }
+
+  function toggleLog() {
+    mobileLogOpen = !mobileLogOpen;
+    playUiSound('click');
+    render();
   }
 
   function updatePlacementHover(cell) {
@@ -1935,6 +1957,7 @@
     state = null;
     activePage = 'home';
     mobileInfoOpen = false;
+    mobileLogOpen = false;
     selectedAbility = 'shot';
     resetLocalPlacement();
     render();

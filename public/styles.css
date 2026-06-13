@@ -2386,8 +2386,9 @@ button.cell:not(:disabled):hover {
     right: 8px;
     bottom: 8px;
     z-index: 19;
-    max-height: min(72vh, 620px);
+    max-height: min(78svh, 620px);
     overflow: auto;
+    overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
   }
 
@@ -2410,13 +2411,35 @@ button.cell:not(:disabled):hover {
   }
 
   .mobile-side-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
     display: flex;
     gap: 8px;
     margin-top: 12px;
+    border-top: 1px solid rgba(76, 225, 245, 0.22);
+    padding-top: 8px;
+    background: linear-gradient(180deg, rgba(3, 25, 37, 0.78), rgba(3, 25, 37, 0.94));
+    backdrop-filter: blur(6px);
   }
 
   .mobile-side-actions .btn {
     flex: 1 1 0;
+  }
+
+  .log-toggle {
+    width: 100%;
+    margin-top: 12px;
+  }
+
+  .log-drawer {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .log-drawer h3 {
+    margin: 0;
   }
 
   .placement-board-panel {
@@ -3058,12 +3081,12 @@ button.cell:not(:disabled):hover {
   }
 
   .topbar.is-status-playing + .screen .own-board-panel .board-title {
-    width: min(100%, 278px);
+    width: min(100%, 216px);
   }
 
   .topbar.is-status-playing + .screen .own-board-panel .board-shell {
     width: 100%;
-    max-width: 230px;
+    max-width: 216px;
     grid-template-columns: 14px minmax(0, 1fr);
     grid-template-rows: 14px auto;
   }
@@ -3081,12 +3104,12 @@ button.cell:not(:disabled):hover {
   }
 
   .topbar.is-status-playing + .screen .target-board-panel .board-title {
-    width: min(100%, 292px);
+    width: min(100%, 272px);
   }
 
   .topbar.is-status-playing + .screen .target-board-panel .board-shell {
     width: 100%;
-    max-width: 292px;
+    max-width: 272px;
     grid-template-columns: 14px minmax(0, 1fr);
     grid-template-rows: 14px auto;
   }
@@ -3202,10 +3225,15 @@ button.cell:not(:disabled):hover {
   }
 
   .topbar.is-status-playing + .screen .own-board-panel .board-title {
-    width: min(100%, 224px);
+    width: min(100%, 206px);
   }
 
   .topbar.is-status-playing + .screen .own-board-panel .board-shell {
-    max-width: 224px;
+    max-width: 206px;
+  }
+
+  .topbar.is-status-playing + .screen .target-board-panel .board-title,
+  .topbar.is-status-playing + .screen .target-board-panel .board-shell {
+    max-width: 260px;
   }
 }
