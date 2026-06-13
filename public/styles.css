@@ -3149,8 +3149,8 @@ button.cell:not(:disabled):hover {
 
   .mobile-info-toggle {
     position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 8px);
-    right: calc(env(safe-area-inset-right, 0px) + 8px);
+    top: calc(env(safe-area-inset-top, 0px) + 2px);
+    right: calc(env(safe-area-inset-right, 0px) + 2px);
     z-index: 17;
     width: 30px;
     min-width: 30px;
@@ -3421,7 +3421,7 @@ button.cell:not(:disabled):hover {
 
   .app-shell:is(.view-playing, .view-finished, .view-abandoned, .view-expired) .screen .game-grid {
     --own-board-size: min(calc(43svh - 62px), calc(100vw - 22px), 236px);
-    --target-board-size: min(calc(70svh - 98px), calc(100vw - 22px), 356px);
+    --target-board-size: min(calc(73svh - 96px), calc(100vw - 12px), 382px);
     gap: clamp(6px, 1.4svh, 12px);
     align-content: start;
   }
@@ -3562,7 +3562,7 @@ button.cell:not(:disabled):hover {
 
   .app-shell:is(.view-playing, .view-finished, .view-abandoned, .view-expired) .screen .game-grid {
     --own-board-size: min(calc(42svh - 64px), calc(100vw - 20px), 228px);
-    --target-board-size: min(calc(68svh - 94px), calc(100vw - 20px), 326px);
+    --target-board-size: min(calc(71svh - 90px), calc(100vw - 12px), 346px);
   }
 
   .topbar.is-status-playing + .screen .own-board-panel .board-title {
