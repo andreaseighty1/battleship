@@ -1189,6 +1189,7 @@
             ${hasArcadePowers() ? `<span class="chip board-energy-chip">${escapeHtml(state.own.energy)} energi</span>` : `<span class="chip board-mode-chip">${escapeHtml(modeLabel(state.mode))}</span>`}
           </div>
           ${renderBoard('own')}
+          ${renderFleetRadar()}
         </div>
         <div class="panel board-wrap target-board-panel">
           <div class="board-title">
@@ -1437,6 +1438,37 @@
         <div class="axis-labels axis-cols" aria-hidden="true">${columns.join('')}</div>
         <div class="axis-labels axis-rows" aria-hidden="true">${rows.join('')}</div>
         <div class="board ${overlays ? 'has-ship-overlays' : ''}" data-board="${type}">${cells.join('')}${overlays}</div>
+      </div>
+    `;
+  }
+
+  function renderFleetRadar() {
+    const cells = [];
+    for (let y = 0; y < BOARD_SIZE; y += 1) {
+      for (let x = 0; x < BOARD_SIZE; x += 1) {
+        const ship = shipAt(state.own.ships, x, y);
+        const incoming = shotAt(state.own.incomingShots, x, y);
+        const classes = ['fleet-radar-cell'];
+        const labels = [coordinateLabel(x, y)];
+        if (ship) {
+          const shipDef = FLEET.find((entry) => entry.id === ship.type);
+          classes.push('is-ship');
+          labels.push(shipDef ? shipDef.name : 'Skepp');
+        }
+        if (incoming) {
+          classes.push(incoming.result === 'hit' ? 'is-hit' : 'is-miss');
+          labels.push(incoming.result === 'hit' ? 'Traff' : 'Miss');
+          if (incoming.sunkShipId) {
+            classes.push('is-sunk');
+            labels.push('Sankt');
+          }
+        }
+        cells.push(`<span class="${classes.join(' ')}" aria-label="${escapeHtml(labels.join(', '))}" title="${escapeHtml(labels.join(', '))}"></span>`);
+      }
+    }
+    return `
+      <div class="fleet-radar" role="img" aria-label="Radar over din flotta">
+        <div class="fleet-radar-grid">${cells.join('')}</div>
       </div>
     `;
   }
