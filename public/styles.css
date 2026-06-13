@@ -567,7 +567,7 @@ input {
   gap: 8px;
   width: 100%;
   min-height: 132px;
-  border-color: rgba(76, 225, 245, 0.68);
+  border: 1px solid rgba(76, 225, 245, 0.68);
   border-radius: 8px;
   padding: 14px 10px;
   color: #ffffff;
