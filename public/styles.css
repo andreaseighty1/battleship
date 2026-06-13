@@ -810,6 +810,63 @@ input {
   line-height: 1.2;
 }
 
+.app-shell:is(.view-waiting, .view-expired, .view-playing, .view-finished, .view-abandoned) .topbar,
+.app-shell:is(.view-waiting, .view-expired) .status-grid > .panel,
+.app-shell:is(.view-playing, .view-finished, .view-abandoned) .game-grid > .panel {
+  border-color: rgba(76, 225, 245, 0.38);
+  color: #f8fcff;
+  background:
+    linear-gradient(180deg, rgba(0, 18, 29, 0.88), rgba(1, 28, 42, 0.94)),
+    radial-gradient(circle at 82% 14%, rgba(76, 225, 245, 0.16), transparent 46%),
+    var(--water-image);
+  background-size: auto, auto, cover;
+  background-position: center;
+  box-shadow:
+    0 18px 38px rgba(0, 0, 0, 0.2),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 0 0 28px rgba(76, 225, 245, 0.08);
+}
+
+.app-shell:is(.view-waiting, .view-expired) .status-grid > .panel::before,
+.app-shell:is(.view-playing, .view-finished, .view-abandoned) .game-grid > .panel::before {
+  border-color: rgba(117, 240, 255, 0.14);
+}
+
+.app-shell:is(.view-waiting, .view-expired, .view-playing, .view-finished, .view-abandoned) :is(.brand h1, .panel h2, .panel h3, .time-panel strong, .wait-card strong, .player-row strong, .stat-tile strong) {
+  color: #ffffff;
+}
+
+.app-shell:is(.view-waiting, .view-expired, .view-playing, .view-finished, .view-abandoned) :is(.brand p, .time-panel span, .wait-card span, .wait-card small, .stat-tile span, .player-state, .score-summary) {
+  color: rgba(235, 250, 255, 0.76);
+}
+
+.app-shell:is(.view-waiting, .view-expired, .view-playing, .view-finished, .view-abandoned) :is(.chip, .btn.ghost, .time-panel > div, .player-row, .empty-state, .score-summary, .stat-tile, .wait-card) {
+  border-color: rgba(76, 225, 245, 0.34);
+  color: #f8fcff;
+  background: rgba(0, 13, 24, 0.48);
+}
+
+.app-shell:is(.view-waiting, .view-expired, .view-playing, .view-finished, .view-abandoned) .chip.is-live,
+.app-shell:is(.view-waiting, .view-expired, .view-playing, .view-finished, .view-abandoned) .chip.is-turn {
+  border-color: rgba(117, 240, 255, 0.7);
+  color: #ffffff;
+  background: rgba(76, 225, 245, 0.18);
+  box-shadow: 0 0 14px rgba(76, 225, 245, 0.18);
+}
+
+.app-shell:is(.view-waiting, .view-expired, .view-playing, .view-finished, .view-abandoned) .btn.primary {
+  color: #051620;
+  background: linear-gradient(180deg, #75f0ff, #38bcd4);
+  border-color: rgba(117, 240, 255, 0.8);
+  box-shadow: 0 10px 24px rgba(56, 188, 212, 0.22);
+}
+
+.app-shell:is(.view-waiting, .view-expired, .view-playing, .view-finished, .view-abandoned) .btn.ghost:hover:not(:disabled) {
+  border-color: rgba(117, 240, 255, 0.72);
+  background: rgba(76, 225, 245, 0.14);
+  box-shadow: 0 0 16px rgba(76, 225, 245, 0.18);
+}
+
 .home-actions {
   display: grid;
   gap: 16px;
@@ -2232,6 +2289,12 @@ button.cell:not(:disabled):hover {
     background-attachment: scroll;
   }
 
+  body:has(.app-shell.view-home),
+  body:has(.app-shell.view-playing),
+  body:has(.app-shell.view-placing) {
+    overscroll-behavior: none;
+  }
+
   .app-shell {
     width: min(100% - 18px, 680px);
     padding-top: 10px;
@@ -2239,6 +2302,18 @@ button.cell:not(:disabled):hover {
 
   .app-shell::before {
     display: none;
+  }
+
+  .app-shell:is(.view-waiting, .view-expired, .view-playing, .view-finished, .view-abandoned) .topbar,
+  .app-shell:is(.view-waiting, .view-expired) .status-grid > .panel,
+  .app-shell:is(.view-playing, .view-finished, .view-abandoned) .game-grid > .panel {
+    background:
+      linear-gradient(180deg, rgba(0, 18, 29, 0.7), rgba(1, 28, 42, 0.82)),
+      radial-gradient(circle at 70% 10%, rgba(76, 225, 245, 0.14), transparent 42%);
+    box-shadow:
+      0 14px 30px rgba(0, 0, 0, 0.16),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(4px);
   }
 
   .title-screen,
@@ -2347,8 +2422,23 @@ button.cell:not(:disabled):hover {
     padding: 7px;
   }
 
-  .topbar.is-mobile-topbar.is-status-playing {
+  .topbar.is-mobile-topbar.is-status-playing,
+  .topbar.is-status-finished,
+  .topbar.is-status-abandoned,
+  .topbar.is-status-expired {
     display: none;
+  }
+
+  .app-shell.view-waiting .topbar {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell.view-waiting .topbar .brand {
+    display: none;
+  }
+
+  .app-shell.view-waiting .room-strip {
+    justify-content: center;
   }
 
   .topbar.is-game-topbar + .screen .game-grid {
@@ -2425,6 +2515,20 @@ button.cell:not(:disabled):hover {
 
   .mobile-side-actions .btn {
     flex: 1 1 0;
+  }
+
+  .side-panel .btn,
+  .side-panel .btn.ghost,
+  .side-panel .mobile-side-actions .btn {
+    border-color: rgba(117, 240, 255, 0.56);
+    color: #ffffff;
+    background: linear-gradient(180deg, rgba(8, 72, 94, 0.94), rgba(0, 22, 34, 0.96));
+    box-shadow: 0 0 14px rgba(76, 225, 245, 0.12);
+  }
+
+  .side-panel .btn.primary {
+    color: #051620;
+    background: linear-gradient(180deg, #75f0ff, #38bcd4);
   }
 
   .log-toggle {
@@ -2517,6 +2621,15 @@ button.cell:not(:disabled):hover {
     background-size: cover;
     background-position: center top;
     background-attachment: scroll;
+  }
+
+  body:has(.app-shell.view-home),
+  body:has(.app-shell.view-playing),
+  body:has(.app-shell.view-placing) {
+    height: 100svh;
+    min-height: 100svh;
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 
   .app-shell {
@@ -2822,7 +2935,10 @@ button.cell:not(:disabled):hover {
     box-shadow: 0 8px 18px rgba(23, 32, 42, 0.08);
   }
 
-  .topbar.is-mobile-topbar.is-status-playing {
+  .topbar.is-mobile-topbar.is-status-playing,
+  .topbar.is-status-finished,
+  .topbar.is-status-abandoned,
+  .topbar.is-status-expired {
     display: none;
   }
 

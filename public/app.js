@@ -1191,7 +1191,7 @@
             <h2>${escapeHtml(state.target.opponentName || 'Motståndare')}</h2>
             <div class="board-title-actions">
               <span class="chip ${state.turn && state.turn.isYou ? 'is-turn' : ''}">${finished ? escapeHtml(state.winner.playerName) : escapeHtml(statusLabel())}</span>
-              <button class="btn ghost mobile-info-toggle" data-action="toggle-mobile-info" type="button" aria-expanded="${mobileInfoOpen ? 'true' : 'false'}">Info</button>
+              <button class="btn ghost mobile-info-toggle" data-action="toggle-mobile-info" type="button" aria-expanded="${mobileInfoOpen ? 'true' : 'false'}">Alternativ</button>
             </div>
           </div>
           ${renderBoard('target')}
