@@ -1105,7 +1105,10 @@
           <h2>Koden gick ut</h2>
           <div class="score-summary">Ingen motståndare anslöt inom 5 minuter.</div>
           ${renderTimePanel()}
-          <button class="btn primary" data-action="new-game" type="button">Nytt spel</button>
+          <div class="outcome-actions">
+            <button class="btn primary" data-action="new-game" type="button">Nytt spel</button>
+            <button class="btn ghost leave-button" data-action="leave" type="button">Lämna</button>
+          </div>
         </div>
         <div class="panel">
           <h2>Spelare</h2>
@@ -1177,12 +1180,13 @@
 
   function renderGame() {
     const finished = state.status === 'finished';
+    const terminal = ['finished', 'expired', 'abandoned'].includes(state.status);
     return `
       <section class="game-grid">
         <div class="panel board-wrap own-board-panel">
           <div class="board-title">
             <h2>Din flotta</h2>
-            ${hasArcadePowers() ? `<span class="chip">${escapeHtml(state.own.energy)} energi</span>` : `<span class="chip">${escapeHtml(modeLabel(state.mode))}</span>`}
+            ${hasArcadePowers() ? `<span class="chip board-energy-chip">${escapeHtml(state.own.energy)} energi</span>` : `<span class="chip board-mode-chip">${escapeHtml(modeLabel(state.mode))}</span>`}
           </div>
           ${renderBoard('own')}
         </div>
@@ -1190,13 +1194,14 @@
           <div class="board-title">
             <h2>${escapeHtml(state.target.opponentName || 'Motståndare')}</h2>
             <div class="board-title-actions">
-              <span class="chip ${state.turn && state.turn.isYou ? 'is-turn' : ''}">${finished ? escapeHtml(state.winner.playerName) : escapeHtml(statusLabel())}</span>
-              <button class="btn ghost mobile-info-toggle" data-action="toggle-mobile-info" type="button" aria-expanded="${mobileInfoOpen ? 'true' : 'false'}">Alternativ</button>
+              <span class="chip turn-status-chip ${state.turn && state.turn.isYou ? 'is-turn' : ''}">${finished ? escapeHtml(state.winner.playerName) : escapeHtml(statusLabel())}</span>
+              <button class="btn ghost mobile-info-toggle" data-action="toggle-mobile-info" type="button" aria-label="Alternativ" aria-expanded="${mobileInfoOpen ? 'true' : 'false'}">Alternativ</button>
             </div>
           </div>
           ${renderBoard('target')}
           ${renderTurnLockOverlay()}
         </div>
+        ${terminal ? renderMobileEndActions() : ''}
         <div class="mobile-info-scrim ${mobileInfoOpen ? 'is-open' : ''}" data-action="close-mobile-info" aria-hidden="true"></div>
         <aside class="panel side-panel ${mobileInfoOpen ? 'is-open' : ''}">
           <div class="side-panel-header">
@@ -1223,6 +1228,15 @@
     `;
   }
 
+  function renderMobileEndActions() {
+    return `
+      <div class="mobile-end-actions">
+        <button class="btn primary" data-action="new-game" type="button">Nytt spel</button>
+        <button class="btn ghost leave-button" data-action="leave" type="button">Lämna</button>
+      </div>
+    `;
+  }
+
   function renderTurnLockOverlay() {
     if (!state || state.status !== 'playing' || !state.turn || state.turn.isYou) {
       return '';
@@ -1242,7 +1256,10 @@
         <div class="energy">
           <h2>${lobbyExpired ? 'Koden gick ut' : 'Tiden gick ut'}</h2>
           <div class="score-summary">${lobbyExpired ? 'Ingen motståndare anslöt inom 5 minuter.' : 'Matchen passerade 48 timmar. Ingen highscore sparades.'}</div>
-          <button class="btn primary" data-action="new-game" type="button">Nytt spel</button>
+          <div class="outcome-actions">
+            <button class="btn primary" data-action="new-game" type="button">Nytt spel</button>
+            <button class="btn ghost leave-button" data-action="leave" type="button">Lämna</button>
+          </div>
         </div>
       `;
     }
@@ -1267,7 +1284,10 @@
       <div class="energy">
         <h2>${state.winner.isYou ? 'Seger' : 'Förlust'}</h2>
         ${state.score ? `<div class="score-summary">${escapeHtml(state.score.winnerName)} vann på ${formatDuration(state.score.durationMs)} med ${state.score.shots} skott, ${state.score.hits} träff och ${state.score.misses} miss.</div>` : ''}
-        <button class="btn primary" data-action="new-game" type="button">Nytt spel</button>
+        <div class="outcome-actions">
+          <button class="btn primary" data-action="new-game" type="button">Nytt spel</button>
+          <button class="btn ghost leave-button" data-action="leave" type="button">Lämna</button>
+        </div>
       </div>
     `;
   }
