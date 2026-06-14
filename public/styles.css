@@ -2559,9 +2559,29 @@ button.cell:not(:disabled):hover {
 
   .mobile-info-toggle {
     display: inline-flex;
-    min-height: 30px;
-    padding: 0 8px;
-    font-size: 0.78rem;
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 2px);
+    right: calc(env(safe-area-inset-right, 0px) + 2px);
+    z-index: 17;
+    width: 30px;
+    min-width: 30px;
+    min-height: 28px;
+    padding: 0;
+    border-color: rgba(117, 240, 255, 0.52);
+    color: transparent;
+    font-size: 0;
+    background: rgba(0, 13, 24, 0.5);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22), 0 0 12px rgba(76, 225, 245, 0.16);
+    backdrop-filter: blur(4px);
+  }
+
+  .mobile-info-toggle::before {
+    content: "";
+    width: 15px;
+    height: 2px;
+    border-radius: 999px;
+    background: #ffffff;
+    box-shadow: 0 -5px 0 #ffffff, 0 5px 0 #ffffff;
   }
 
   .mobile-end-actions {
