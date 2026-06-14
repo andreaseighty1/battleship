@@ -725,10 +725,18 @@
   }
 
   function currentFleet() {
+    const modeFleet = localFleetForMode(state && state.mode ? state.mode : selectedMode);
     if (state && Array.isArray(state.fleet) && state.fleet.length) {
-      return state.fleet;
+      if (normalizeModeId(state.mode && state.mode.id) !== 'arcade') {
+        return state.fleet;
+      }
+      const byId = new Map(state.fleet.map((ship) => [ship.id, ship]));
+      return [
+        ...state.fleet,
+        ...modeFleet.filter((ship) => !byId.has(ship.id))
+      ];
     }
-    return localFleetForMode(state && state.mode ? state.mode : selectedMode);
+    return modeFleet;
   }
 
   function shipDefinition(type) {
@@ -1593,8 +1601,9 @@
 
     const revealClass = revealState ? ` is-revealed-enemy is-${revealState}-fleet` : '';
     const selectedClass = boardType === 'placement' && selectedShipId === placement.type ? ' is-selected-placement' : '';
+    const singleClass = length === 1 ? ' ship-single-cell' : '';
     return `
-      <span class="ship-overlay ship-dir-${direction} ship-type-${escapeHtml(placement.type)}${revealClass}${selectedClass}" style="${style}" aria-hidden="true">
+      <span class="ship-overlay ship-dir-${direction} ship-type-${escapeHtml(placement.type)}${singleClass}${revealClass}${selectedClass}" style="${style}" aria-hidden="true">
         <img class="ship-sprite" src="${escapeHtml(asset)}" alt="">
       </span>
     `;
@@ -1781,6 +1790,9 @@
     const normalized = cells.map((cell) => ({ x: Number(cell.x), y: Number(cell.y) }));
     if (normalized.some((cell) => !Number.isInteger(cell.x) || !Number.isInteger(cell.y))) {
       return null;
+    }
+    if (expectedLength === 1) {
+      return { direction: 'horizontal', cells: normalized };
     }
     const sameRow = normalized.every((cell) => cell.y === normalized[0].y);
     const sameColumn = normalized.every((cell) => cell.x === normalized[0].x);

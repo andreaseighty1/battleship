@@ -1709,6 +1709,20 @@ button.cell:not(:disabled):hover {
   height: 86%;
 }
 
+.ship-single-cell::before {
+  inset: 10%;
+  border-radius: 10px;
+}
+
+.ship-single-cell .ship-sprite,
+.ship-dir-vertical.ship-single-cell .ship-sprite {
+  left: 6%;
+  top: 6%;
+  width: 88%;
+  height: 88%;
+  transform: none;
+}
+
 .ship-button[data-ship="drone"] .ship-pips span {
   background: #79f7ff;
   box-shadow: 0 0 8px rgba(121, 247, 255, 0.74);
