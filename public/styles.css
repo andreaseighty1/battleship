@@ -2087,9 +2087,66 @@ button.cell:not(:disabled):hover {
   color: var(--ink);
 }
 
+.ability-toggle {
+  min-height: 32px;
+  padding: 0 12px;
+  border-color: rgba(117, 240, 255, 0.56);
+  color: #dffcff;
+  background:
+    linear-gradient(180deg, rgba(20, 116, 137, 0.34), rgba(0, 21, 34, 0.62));
+}
+
+.ability-toggle.is-active,
+.ability-toggle:hover {
+  border-color: rgba(117, 240, 255, 0.96);
+  box-shadow: 0 0 16px rgba(76, 225, 245, 0.26);
+}
+
+.board-ability-chip {
+  color: #dffcff;
+  border-color: rgba(117, 240, 255, 0.42);
+  background: rgba(5, 42, 56, 0.72);
+}
+
+.ability-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.ability-panel-title,
+.ability-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ability-panel-title h3,
+.ability-popover-header strong {
+  margin: 0;
+}
+
+.ability-toolbox {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ability-toolbox .ability-button {
+  min-height: 48px;
+  color: #ffffff;
+  border-color: rgba(117, 240, 255, 0.38);
+  background:
+    linear-gradient(180deg, rgba(17, 112, 133, 0.44), rgba(0, 24, 39, 0.72));
+}
+
+.ability-toolbox .ability-button:disabled {
+  opacity: 0.5;
+}
+
 .ability-button.is-active {
   border-color: var(--power);
-  box-shadow: inset 4px 0 0 var(--power);
+  box-shadow:
+    inset 4px 0 0 var(--power),
+    0 0 14px rgba(123, 44, 191, 0.22);
 }
 
 .ability-button strong {
@@ -2098,8 +2155,41 @@ button.cell:not(:disabled):hover {
 }
 
 .ability-button span {
-  color: var(--muted);
+  color: rgba(223, 252, 255, 0.72);
   font-size: 0.82rem;
+}
+
+.ability-scrim,
+.ability-popover {
+  display: none;
+}
+
+.ability-scrim.is-open {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: rgba(0, 10, 18, 0.18);
+}
+
+.ability-popover.is-open {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right, 0px));
+  top: max(92px, calc(env(safe-area-inset-top, 0px) + 72px));
+  z-index: 21;
+  display: grid;
+  gap: 10px;
+  width: min(420px, calc(100vw - 28px));
+  border: 1px solid rgba(117, 240, 255, 0.58);
+  border-radius: 8px;
+  padding: 12px;
+  color: #ffffff;
+  background:
+    linear-gradient(180deg, rgba(6, 40, 56, 0.96), rgba(1, 17, 29, 0.96));
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.38),
+    0 0 22px rgba(76, 225, 245, 0.18);
+  backdrop-filter: blur(8px);
 }
 
 .energy {
@@ -2595,6 +2685,37 @@ button.cell:not(:disabled):hover {
     background: rgba(0, 13, 24, 0.5);
     box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22), 0 0 12px rgba(76, 225, 245, 0.16);
     backdrop-filter: blur(4px);
+  }
+
+  .ability-toggle {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 2px);
+    right: calc(env(safe-area-inset-right, 0px) + 38px);
+    z-index: 17;
+    min-width: 74px;
+    min-height: 28px;
+    padding: 0 8px;
+    font-size: 0.62rem;
+    background: rgba(0, 13, 24, 0.56);
+    backdrop-filter: blur(4px);
+  }
+
+  .ability-popover.is-open {
+    left: 8px;
+    right: 8px;
+    top: auto;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+    width: auto;
+    padding: 10px;
+  }
+
+  .ability-toolbox {
+    gap: 6px;
+  }
+
+  .ability-toolbox .ability-button {
+    min-height: 42px;
+    padding: 8px;
   }
 
   .mobile-info-toggle::before {
@@ -3213,6 +3334,38 @@ button.cell:not(:disabled):hover {
     border-radius: 999px;
     background: #ffffff;
     box-shadow: 0 -5px 0 #ffffff, 0 5px 0 #ffffff;
+  }
+
+  .ability-toggle {
+    right: calc(env(safe-area-inset-right, 0px) + 38px);
+    min-width: 66px;
+    min-height: 28px;
+    padding: 0 6px;
+    font-size: 0.58rem;
+  }
+
+  .ability-popover.is-open {
+    left: 6px;
+    right: 6px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 6px);
+  }
+
+  .ability-toolbox {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .ability-toolbox .ability-button {
+    min-height: 38px;
+    padding: 6px 5px;
+  }
+
+  .ability-toolbox .ability-button strong {
+    font-size: 0.72rem;
+  }
+
+  .ability-toolbox .ability-button span {
+    font-size: 0.64rem;
   }
 
   .target-board-panel .board-title {

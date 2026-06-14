@@ -3,8 +3,8 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
+  ARCADE_ABILITY_CHARGES,
   ARCADE_FLEET,
-  BARRAGE_COST,
   BOARD_SIZE,
   FLEET,
   GAME_TTL_MS,
@@ -228,7 +228,7 @@ test('leaving a game abandons it for the opponent without recording a score', ()
   assert.equal(guestState.score, null);
 });
 
-test('sonar spends energy without changing turn', () => {
+test('sonar spends a charge and passes turn', () => {
   const store = new Map();
   const host = createGame('Ada', store, 'arcade');
   const guest = joinGame(host.code, 'Bo', store);
@@ -238,21 +238,37 @@ test('sonar spends energy without changing turn', () => {
   const result = performAction(host.code, host.playerId, { ability: 'sonar', x: 0, y: 5 }, store);
   assert.equal(result.result.count, 4);
   const state = serializeGame(host.game, host.playerId);
-  assert.equal(state.turn.isYou, true);
-  assert.equal(state.own.energy, 0);
+  assert.equal(state.turn.isYou, false);
+  assert.equal(state.own.abilityCharges.sonar, ARCADE_ABILITY_CHARGES.sonar - 1);
+  assert.equal(state.own.abilityCharges.barrage, ARCADE_ABILITY_CHARGES.barrage);
 });
 
-test('barrage spends energy and fires a cross pattern', () => {
+test('barrage spends a charge and fires a cross pattern', () => {
   const store = new Map();
   const host = createGame('Ada', store, 'arcade');
   const guest = joinGame(host.code, 'Bo', store);
   placeFleet(host.code, host.playerId, arcadeFleetFromRows(0), store);
   placeFleet(host.code, guest.playerId, arcadeFleetFromRows(5), store);
-  host.game.players[0].energy = BARRAGE_COST;
 
   const result = performAction(host.code, host.playerId, { ability: 'barrage', x: 2, y: 5 }, store);
   assert.equal(result.result.shots.length, 5);
-  assert.equal(serializeGame(host.game, host.playerId).turn.isYou, false);
+  const state = serializeGame(host.game, host.playerId);
+  assert.equal(state.turn.isYou, false);
+  assert.equal(state.own.abilityCharges.barrage, 0);
+});
+
+test('arcade powers cannot be used after charges run out', () => {
+  const store = new Map();
+  const host = createGame('Ada', store, 'arcade');
+  const guest = joinGame(host.code, 'Bo', store);
+  placeFleet(host.code, host.playerId, arcadeFleetFromRows(0), store);
+  placeFleet(host.code, guest.playerId, arcadeFleetFromRows(5), store);
+  host.game.players[0].abilityCharges.sonar = 0;
+
+  assert.throws(
+    () => performAction(host.code, host.playerId, { ability: 'sonar', x: 0, y: 5 }, store),
+    /Sonar är slut/
+  );
 });
 
 test('complete game can be won and records a fast-win score', () => {

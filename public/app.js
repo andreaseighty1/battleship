@@ -8,7 +8,7 @@
   }
 
   const BOARD_SIZE = 10;
-  const MAX_ENERGY = 9;
+  const DEFAULT_ABILITY_CHARGES = { sonar: 3, barrage: 1 };
   const CLASSIC_FLEET = [
     { id: 'carrier', name: 'Hangarfartyg', length: 5 },
     { id: 'battleship', name: 'Slagskepp', length: 4 },
@@ -105,6 +105,7 @@
   let activePage = 'home';
   let mobileInfoOpen = false;
   let mobileLogOpen = false;
+  let abilityPanelOpen = false;
   let playerNameDraft = readPlayerName();
   let toastTimer = null;
   let scores = [];
@@ -692,6 +693,33 @@
     return Boolean(currentMode().abilities);
   }
 
+  function ownAbilityCharges() {
+    const charges = state && state.own && state.own.abilityCharges ? state.own.abilityCharges : {};
+    return {
+      sonar: Number.isInteger(Number(charges.sonar)) ? Number(charges.sonar) : DEFAULT_ABILITY_CHARGES.sonar,
+      barrage: Number.isInteger(Number(charges.barrage)) ? Number(charges.barrage) : DEFAULT_ABILITY_CHARGES.barrage
+    };
+  }
+
+  function abilityCharge(id) {
+    if (id === 'shot') {
+      return Infinity;
+    }
+    return ownAbilityCharges()[id] || 0;
+  }
+
+  function abilityDisabled(id) {
+    if (!state || state.status !== 'playing' || !(state.turn && state.turn.isYou)) {
+      return true;
+    }
+    return id !== 'shot' && abilityCharge(id) <= 0;
+  }
+
+  function abilitySummary() {
+    const charges = ownAbilityCharges();
+    return `S ${charges.sonar} / B ${charges.barrage}`;
+  }
+
   function localFleetForMode(modeOrId) {
     return normalizeModeId(modeOrId && modeOrId.id ? modeOrId.id : modeOrId) === 'arcade' ? ARCADE_FLEET : CLASSIC_FLEET;
   }
@@ -848,10 +876,15 @@
   function render() {
     if (state && !hasArcadePowers()) {
       selectedAbility = 'shot';
+      abilityPanelOpen = false;
+    }
+    if (state && hasArcadePowers() && selectedAbility !== 'shot' && abilityCharge(selectedAbility) <= 0) {
+      selectedAbility = 'shot';
     }
     if (!state || state.status !== 'playing') {
       mobileInfoOpen = false;
       mobileLogOpen = false;
+      abilityPanelOpen = false;
     }
     const sidePanelScrollTop = document.querySelector('.side-panel.is-open')?.scrollTop || 0;
     const topbar = renderTopbar();
@@ -1216,7 +1249,7 @@
         <div class="panel board-wrap own-board-panel">
           <div class="board-title">
             <h2>Din flotta</h2>
-            ${hasArcadePowers() ? `<span class="chip board-energy-chip">${escapeHtml(state.own.energy)} energi</span>` : `<span class="chip board-mode-chip">${escapeHtml(modeLabel(state.mode))}</span>`}
+            ${hasArcadePowers() ? `<span class="chip board-ability-chip">${escapeHtml(abilitySummary())}</span>` : `<span class="chip board-mode-chip">${escapeHtml(modeLabel(state.mode))}</span>`}
           </div>
           ${renderBoard('own')}
           ${renderFleetRadar()}
@@ -1226,6 +1259,7 @@
             <h2>${escapeHtml(state.target.opponentName || 'Motståndare')}</h2>
             <div class="board-title-actions">
               <span class="chip turn-status-chip ${state.turn && state.turn.isYou ? 'is-turn' : ''}">${finished ? escapeHtml(state.winner.playerName) : escapeHtml(statusLabel())}</span>
+              ${hasArcadePowers() && state.status === 'playing' ? `<button class="btn ghost ability-toggle ${abilityPanelOpen ? 'is-active' : ''}" data-action="toggle-ability-panel" type="button" aria-label="Förmågor" aria-expanded="${abilityPanelOpen ? 'true' : 'false'}">Förmågor</button>` : ''}
               <button class="btn ghost mobile-info-toggle" data-action="toggle-mobile-info" type="button" aria-label="Alternativ" aria-expanded="${mobileInfoOpen ? 'true' : 'false'}">Alternativ</button>
             </div>
           </div>
@@ -1233,6 +1267,7 @@
           ${renderTurnLockOverlay()}
         </div>
         ${terminal ? renderMobileEndActions() : ''}
+        ${renderAbilityPopover()}
         <div class="mobile-info-scrim ${mobileInfoOpen ? 'is-open' : ''}" data-action="close-mobile-info" aria-hidden="true"></div>
         <aside class="panel side-panel ${mobileInfoOpen ? 'is-open' : ''}">
           <div class="side-panel-header">
@@ -1265,6 +1300,22 @@
         <button class="btn primary" data-action="new-game" type="button">Nytt spel</button>
         <button class="btn ghost leave-button" data-action="leave" type="button">Lämna</button>
       </div>
+    `;
+  }
+
+  function renderAbilityPopover() {
+    if (!state || state.status !== 'playing' || !hasArcadePowers()) {
+      return '';
+    }
+    return `
+      <div class="ability-scrim ${abilityPanelOpen ? 'is-open' : ''}" data-action="close-ability-panel" aria-hidden="true"></div>
+      <aside class="ability-popover ${abilityPanelOpen ? 'is-open' : ''}" aria-label="Arcadeförmågor">
+        <div class="ability-popover-header">
+          <strong>Arcade</strong>
+          <button class="btn ghost side-close" data-action="close-ability-panel" type="button">Stäng</button>
+        </div>
+        ${renderPowerPanel('popover')}
+      </aside>
     `;
   }
 
@@ -1323,21 +1374,22 @@
     `;
   }
 
-  function renderPowerPanel() {
+  function renderPowerPanel(variant = 'side') {
     if (state.status !== 'playing' || !hasArcadePowers()) {
       return '';
     }
-    const energyWidth = Math.round((state.own.energy / MAX_ENERGY) * 100);
-    const disabled = !(state.turn && state.turn.isYou);
+    const charges = ownAbilityCharges();
     return `
-      <div class="energy">
-        <h3>Energi</h3>
-        <div class="energy-bar" style="--energy-width: ${energyWidth}%"><span></span></div>
-      </div>
-      <div class="toolbox">
-        ${renderAbility('shot', 'Skott', '0', disabled)}
-        ${renderAbility('sonar', 'Sonar', '2', disabled || state.own.energy < 2)}
-        ${renderAbility('barrage', 'Barrage', '5', disabled || state.own.energy < 5)}
+      <div class="ability-panel ${variant === 'popover' ? 'is-popover' : 'is-side'}">
+        <div class="ability-panel-title">
+          <h3>Förmågor</h3>
+          <span class="chip">${escapeHtml(abilitySummary())}</span>
+        </div>
+        <div class="toolbox ability-toolbox">
+          ${renderAbility('shot', 'Skott', '∞', abilityDisabled('shot'))}
+          ${renderAbility('sonar', 'Sonar', `${charges.sonar} kvar`, abilityDisabled('sonar'))}
+          ${renderAbility('barrage', 'Barrage', `${charges.barrage} kvar`, abilityDisabled('barrage'))}
+        </div>
       </div>
     `;
   }
@@ -1911,6 +1963,8 @@
     if (action === 'create-bot') return createBotGame();
     if (action === 'toggle-mobile-info') return toggleMobileInfo();
     if (action === 'close-mobile-info') return closeMobileInfo();
+    if (action === 'toggle-ability-panel') return toggleAbilityPanel();
+    if (action === 'close-ability-panel') return closeAbilityPanel();
     if (action === 'toggle-log') return toggleLog();
     if (action === 'select-ship') return selectShip(event.currentTarget.dataset.ship);
     if (action === 'orientation') return setOrientation(event.currentTarget.dataset.orientation);
@@ -1971,6 +2025,9 @@
 
   function toggleMobileInfo() {
     mobileInfoOpen = !mobileInfoOpen;
+    if (mobileInfoOpen) {
+      abilityPanelOpen = false;
+    }
     playUiSound('click');
     render();
   }
@@ -1979,6 +2036,27 @@
     if (mobileInfoOpen) {
       mobileInfoOpen = false;
       mobileLogOpen = false;
+      playUiSound('click');
+      render();
+    }
+  }
+
+  function toggleAbilityPanel() {
+    if (!hasArcadePowers()) {
+      return;
+    }
+    abilityPanelOpen = !abilityPanelOpen;
+    if (abilityPanelOpen) {
+      mobileInfoOpen = false;
+      mobileLogOpen = false;
+    }
+    playUiSound('click');
+    render();
+  }
+
+  function closeAbilityPanel() {
+    if (abilityPanelOpen) {
+      abilityPanelOpen = false;
       playUiSound('click');
       render();
     }
@@ -2274,7 +2352,13 @@
       render();
       return;
     }
+    if (ability !== 'shot' && abilityCharge(ability) <= 0) {
+      playUiSound('error');
+      showToast(`${ability === 'sonar' ? 'Sonar' : 'Barrage'} är slut.`);
+      return;
+    }
     selectedAbility = ability;
+    abilityPanelOpen = false;
     playUiSound('select');
     render();
   }
@@ -2285,6 +2369,13 @@
     }
     const cell = readCell(cellElement);
     const ability = hasArcadePowers() ? selectedAbility : 'shot';
+    if (ability !== 'shot' && abilityCharge(ability) <= 0) {
+      playUiSound('error');
+      showToast(`${ability === 'sonar' ? 'Sonar' : 'Barrage'} är slut.`);
+      selectedAbility = 'shot';
+      render();
+      return;
+    }
     if (ability === 'shot' && shotAt(state.target.outgoingShots, cell.x, cell.y)) {
       playUiSound('error');
       showToast('Den rutan är redan beskjuten.');
@@ -2306,6 +2397,7 @@
       if (ability !== 'shot') {
         selectedAbility = 'shot';
       }
+      abilityPanelOpen = false;
       render();
     } catch (error) {
       playUiSound('error');

@@ -4,6 +4,12 @@ const BOARD_SIZE = 10;
 const SONAR_COST = 2;
 const BARRAGE_COST = 5;
 const MAX_ENERGY = 9;
+const SONAR_CHARGES = 3;
+const BARRAGE_CHARGES = 1;
+const ARCADE_ABILITY_CHARGES = Object.freeze({
+  sonar: SONAR_CHARGES,
+  barrage: BARRAGE_CHARGES
+});
 const LOBBY_TTL_MS = 5 * 60 * 1000;
 const GAME_TTL_MS = 48 * 60 * 60 * 1000;
 const SCORE_LIMIT = 50;
@@ -24,13 +30,18 @@ const GAME_MODES = Object.freeze({
     startingEnergy: 2
   })
 });
-const FLEET = Object.freeze([
+const CLASSIC_FLEET = Object.freeze([
   Object.freeze({ id: 'carrier', name: 'Hangarfartyg', length: 5 }),
   Object.freeze({ id: 'battleship', name: 'Slagskepp', length: 4 }),
   Object.freeze({ id: 'cruiser', name: 'Kryssare', length: 3 }),
   Object.freeze({ id: 'submarine', name: 'Ubåt', length: 3 }),
   Object.freeze({ id: 'destroyer', name: 'Jagare', length: 2 })
 ]);
+const ARCADE_FLEET = Object.freeze([
+  ...CLASSIC_FLEET,
+  Object.freeze({ id: 'drone', name: 'Drönare', length: 1 })
+]);
+const FLEET = CLASSIC_FLEET;
 const PROFANITY_TERMS = Object.freeze([
   'fuck',
   'fucker',
@@ -189,6 +200,10 @@ function modeSettings(gameOrMode: any): any {
   return (GAME_MODES as any)[normalizeMode(mode)];
 }
 
+function fleetForMode(gameOrMode: any = DEFAULT_MODE): readonly any[] {
+  return modeSettings(gameOrMode).abilities ? ARCADE_FLEET : CLASSIC_FLEET;
+}
+
 function publicMode(gameOrMode: any): any {
   const settings = modeSettings(gameOrMode);
   return {
@@ -199,16 +214,47 @@ function publicMode(gameOrMode: any): any {
   };
 }
 
+function initialAbilityCharges(gameOrMode: any = DEFAULT_MODE): any {
+  if (!modeSettings(gameOrMode).abilities) {
+    return { sonar: 0, barrage: 0 };
+  }
+  return { ...ARCADE_ABILITY_CHARGES };
+}
+
+function ensureAbilityCharges(player: any, gameOrMode: any = DEFAULT_MODE): any {
+  const defaults = initialAbilityCharges(gameOrMode);
+  if (!modeSettings(gameOrMode).abilities) {
+    return defaults;
+  }
+  if (!player.abilityCharges || typeof player.abilityCharges !== 'object') {
+    player.abilityCharges = { ...defaults };
+  }
+  for (const [ability, defaultCount] of Object.entries(defaults)) {
+    const value = Number(player.abilityCharges[ability]);
+    player.abilityCharges[ability] = Number.isInteger(value) && value >= 0 ? value : defaultCount;
+  }
+  return player.abilityCharges;
+}
+
+function publicAbilityCharges(player: any, gameOrMode: any = DEFAULT_MODE): any {
+  return { ...ensureAbilityCharges(player, gameOrMode) };
+}
+
+function useAbilityCharge(player: any, gameOrMode: any, ability: string, label: string): number {
+  const charges = ensureAbilityCharges(player, gameOrMode);
+  if (!Number.isInteger(charges[ability]) || charges[ability] <= 0) {
+    fail(409, `${label} är slut.`);
+  }
+  charges[ability] -= 1;
+  return charges[ability];
+}
+
 function cellKey(x: number, y: number): string {
   return `${x},${y}`;
 }
 
 function formatCell(x: number, y: number): string {
   return `${String.fromCharCode(65 + y)}${x + 1}`;
-}
-
-function addEnergy(player: any, amount: number): void {
-  player.energy = Math.max(0, Math.min(MAX_ENERGY, player.energy + amount));
 }
 
 function createPlayer(name: unknown, index: number): any {
@@ -219,6 +265,7 @@ function createPlayer(name: unknown, index: number): any {
     ships: null,
     ready: false,
     energy: 0,
+    abilityCharges: null,
     sonarScans: []
   };
 }
@@ -521,9 +568,10 @@ function shipAtFleet(ships: any[], x: number, y: number): any | null {
   return ships.find((ship) => ship.cells.some((cell: any) => cell.x === x && cell.y === y)) || null;
 }
 
-function randomFleet(): any[] {
+function randomFleet(gameOrMode: any = DEFAULT_MODE): any[] {
+  const fleet = fleetForMode(gameOrMode);
   const ships = [];
-  for (const ship of FLEET) {
+  for (const ship of fleet) {
     let placed = false;
     for (let attempt = 0; attempt < 800 && !placed; attempt += 1) {
       const direction = randomIndex(2) === 0 ? 'horizontal' : 'vertical';
@@ -544,15 +592,16 @@ function randomFleet(): any[] {
       fail(503, 'Datorn kunde inte placera sin flotta just nu.');
     }
   }
-  return validateFleet(ships);
+  return validateFleet(ships, gameOrMode);
 }
 
 async function createBotGame(hostName: unknown): Promise<{ game: any; code: string; playerId: string }> {
   const { game, code, playerId } = await createGame(hostName, 'classic');
   const bot = createBotPlayer();
-  bot.ships = randomFleet();
+  bot.ships = randomFleet(game);
   bot.ready = true;
   bot.energy = modeSettings(game).startingEnergy;
+  bot.abilityCharges = initialAbilityCharges(game);
   bot.sonarScans = [];
   game.players.push(bot);
   game.shotsByPlayer[bot.id] = [];
@@ -618,12 +667,16 @@ function normalizeCell(cell: any): { x: number; y: number } {
   return { x, y };
 }
 
-function validateFleet(rawShips: any): any[] {
+function validateFleet(rawShips: any, gameOrMode: any = DEFAULT_MODE): any[] {
   if (!Array.isArray(rawShips)) fail(400, 'Fleet is missing.');
+  const fleet = fleetForMode(gameOrMode);
+  const allowedShipIds = new Set(fleet.map((ship: any) => ship.id));
+  const unexpectedShip = rawShips.find((ship: any) => ship?.id && !allowedShipIds.has(ship.id));
+  if (unexpectedShip) fail(400, `Fleet contains unknown ship: ${unexpectedShip.id}.`);
   const occupied = new Set<string>();
   const normalized = [];
 
-  for (const fleetShip of FLEET) {
+  for (const fleetShip of fleet) {
     const candidates = rawShips.filter((ship: any) => ship?.id === fleetShip.id);
     if (candidates.length !== 1) fail(400, `Fleet must contain one ${fleetShip.name}.`);
     const ship = candidates[0];
@@ -672,9 +725,10 @@ async function placeFleet(codeInput: unknown, playerId: unknown, rawShips: any):
   if (game.status !== 'placing') fail(409, 'You cannot place ships right now.');
   if (player.ready) fail(409, 'You are already ready.');
 
-  player.ships = validateFleet(rawShips);
+  player.ships = validateFleet(rawShips, game);
   player.ready = true;
   player.energy = modeSettings(game).startingEnergy;
+  player.abilityCharges = initialAbilityCharges(game);
   player.sonarScans = [];
   touch(game);
   logEvent(game, 'system', `${player.name} är redo.`);
@@ -720,7 +774,6 @@ function isFleetSunkBy(game: any, attackerId: string, defender: any): boolean {
 }
 
 function resolveSingleShot(game: any, attacker: any, defender: any, x: number, y: number, source: string): any {
-  const settings = modeSettings(game);
   const ship = findShipAt(defender, x, y);
   const shot: any = { x, y, source, result: ship ? 'hit' : 'miss', at: Date.now() };
   if (!ship) {
@@ -733,10 +786,8 @@ function resolveSingleShot(game: any, attacker: any, defender: any, x: number, y
   const sunk = isShipSunkByShots(game.shotsByPlayer[attacker.id], ship);
   if (sunk) {
     markSunkShipShots(game.shotsByPlayer[attacker.id], ship);
-    if (settings.abilities) addEnergy(attacker, 3);
     return { shot, hit: true, sunkShip: ship };
   }
-  if (settings.abilities) addEnergy(attacker, 1);
   return { shot, hit: true, sunkShip: null };
 }
 
@@ -849,15 +900,15 @@ function regionCells(centerX: number, centerY: number, radius: number): Array<{ 
 
 function performSonar(game: any, attacker: any, defender: any, x: number, y: number): any {
   if (!modeSettings(game).abilities) fail(409, 'Sonar finns bara i Arcade-laget.');
-  if (attacker.energy < SONAR_COST) fail(409, 'Not enough energy for sonar.');
   if (attacker.sonarScans.some((scan: any) => scan.x === x && scan.y === y)) {
     fail(409, 'You already scanned that cell.');
   }
   const count = regionCells(x, y, 1).filter((cell) => findShipAt(defender, cell.x, cell.y)).length;
-  addEnergy(attacker, -SONAR_COST);
+  useAbilityCharge(attacker, game, 'sonar', 'Sonar');
   attacker.sonarScans.push({ x, y, count, at: Date.now() });
   logEvent(game, 'power', `${attacker.name} använde sonar vid ${formatCell(x, y)}.`);
-  return { ability: 'sonar', count };
+  setTurn(game, defender.id);
+  return { ability: 'sonar', count, charges: publicAbilityCharges(attacker, game) };
 }
 
 function barrageCells(centerX: number, centerY: number): Array<{ x: number; y: number }> {
@@ -872,11 +923,10 @@ function barrageCells(centerX: number, centerY: number): Array<{ x: number; y: n
 
 function performBarrage(game: any, attacker: any, defender: any, x: number, y: number): any {
   if (!modeSettings(game).abilities) fail(409, 'Barrage finns bara i Arcade-laget.');
-  if (attacker.energy < BARRAGE_COST) fail(409, 'Not enough energy for barrage.');
   const targets = barrageCells(x, y).filter((cell) => !hasShotAt(game, attacker.id, cell.x, cell.y));
   if (targets.length === 0) fail(409, 'Barrage area is already fired at.');
 
-  addEnergy(attacker, -BARRAGE_COST);
+  useAbilityCharge(attacker, game, 'barrage', 'Barrage');
   const outcomes = targets.map((cell) => resolveSingleShot(game, attacker, defender, cell.x, cell.y, 'barrage'));
   const hits = outcomes.filter((outcome) => outcome.hit);
   const sunkNames = [...new Set(outcomes.filter((outcome) => outcome.sunkShip).map((outcome) => outcome.sunkShip.name))];
@@ -888,7 +938,7 @@ function performBarrage(game: any, attacker: any, defender: any, x: number, y: n
   } else {
     setTurn(game, defender.id);
   }
-  return { ability: 'barrage', shots: outcomes.map((outcome) => outcome.shot) };
+  return { ability: 'barrage', shots: outcomes.map((outcome) => outcome.shot), charges: publicAbilityCharges(attacker, game) };
 }
 
 async function performAction(body: any): Promise<{ game: any; result: any }> {
@@ -960,14 +1010,15 @@ function serializeGame(game: any, playerId: unknown): any {
       lobbyDurationMs: LOBBY_TTL_MS,
       maxDurationMs: GAME_TTL_MS
     },
-    fleet: FLEET,
+    fleet: fleetForMode(game),
     playerId: player.id,
     playerName: player.name,
     players: game.players.map((entry: any) => ({
       name: entry.name,
       isYou: entry.id === player.id,
       ready: entry.ready,
-      energy: entry.id === player.id && modeSettings(game).abilities ? entry.energy : undefined
+      energy: entry.id === player.id && modeSettings(game).abilities ? entry.energy : undefined,
+      abilityCharges: entry.id === player.id && modeSettings(game).abilities ? publicAbilityCharges(entry, game) : undefined
     })),
     turn: turnPlayer ? { playerName: turnPlayer.name, isYou: turnPlayer.id === player.id } : null,
     winner: winner ? { playerName: winner.name, isYou: winner.id === player.id } : null,
@@ -980,6 +1031,7 @@ function serializeGame(game: any, playerId: unknown): any {
     own: {
       ready: player.ready,
       energy: modeSettings(game).abilities ? player.energy : 0,
+      abilityCharges: modeSettings(game).abilities ? publicAbilityCharges(player, game) : initialAbilityCharges(game),
       ships: player.ships || [],
       incomingShots: opponent ? (game.shotsByPlayer[opponent.id] || []).map(cloneShot) : []
     },

@@ -13,6 +13,12 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const SONAR_COST = 2;
 const BARRAGE_COST = 5;
 const MAX_ENERGY = 9;
+const SONAR_CHARGES = 3;
+const BARRAGE_CHARGES = 1;
+const ARCADE_ABILITY_CHARGES = Object.freeze({
+  sonar: SONAR_CHARGES,
+  barrage: BARRAGE_CHARGES
+});
 const LOBBY_TTL_MS = 5 * 60 * 1000;
 const GAME_TTL_MS = 48 * 60 * 60 * 1000;
 const DEFAULT_MODE = 'classic';
@@ -154,6 +160,41 @@ function publicMode(gameOrMode) {
   };
 }
 
+function initialAbilityCharges(gameOrMode = DEFAULT_MODE) {
+  if (!modeSettings(gameOrMode).abilities) {
+    return { sonar: 0, barrage: 0 };
+  }
+  return { ...ARCADE_ABILITY_CHARGES };
+}
+
+function ensureAbilityCharges(player, gameOrMode = DEFAULT_MODE) {
+  const defaults = initialAbilityCharges(gameOrMode);
+  if (!modeSettings(gameOrMode).abilities) {
+    return defaults;
+  }
+  if (!player.abilityCharges || typeof player.abilityCharges !== 'object') {
+    player.abilityCharges = { ...defaults };
+  }
+  for (const [ability, defaultCount] of Object.entries(defaults)) {
+    const value = Number(player.abilityCharges[ability]);
+    player.abilityCharges[ability] = Number.isInteger(value) && value >= 0 ? value : defaultCount;
+  }
+  return player.abilityCharges;
+}
+
+function publicAbilityCharges(player, gameOrMode = DEFAULT_MODE) {
+  return { ...ensureAbilityCharges(player, gameOrMode) };
+}
+
+function useAbilityCharge(player, gameOrMode, ability, label) {
+  const charges = ensureAbilityCharges(player, gameOrMode);
+  if (!Number.isInteger(charges[ability]) || charges[ability] <= 0) {
+    fail(409, `${label} är slut.`);
+  }
+  charges[ability] -= 1;
+  return charges[ability];
+}
+
 function generateCode(store = games) {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   for (let attempt = 0; attempt < 80; attempt += 1) {
@@ -176,6 +217,7 @@ function createPlayer(name, index) {
     ships: null,
     ready: false,
     energy: 0,
+    abilityCharges: null,
     sonarScans: []
   };
 }
@@ -414,6 +456,7 @@ function createBotGame(hostName, store = games) {
   bot.ships = randomFleet(game);
   bot.ready = true;
   bot.energy = modeSettings(game).startingEnergy;
+  bot.abilityCharges = initialAbilityCharges(game);
   bot.sonarScans = [];
   game.players.push(bot);
   game.shotsByPlayer[bot.id] = [];
@@ -586,6 +629,7 @@ function placeFleet(codeInput, playerId, rawShips, store = games) {
   player.ships = validateFleet(rawShips, game);
   player.ready = true;
   player.energy = modeSettings(game).startingEnergy;
+  player.abilityCharges = initialAbilityCharges(game);
   player.sonarScans = [];
   touch(game);
   logEvent(game, 'system', `${player.name} är redo.`);
@@ -633,12 +677,7 @@ function isFleetSunkBy(game, attackerId, defender) {
   return Boolean(defender.ships && defender.ships.every((ship) => isShipSunkByShots(shots, ship)));
 }
 
-function addEnergy(player, amount) {
-  player.energy = Math.max(0, Math.min(MAX_ENERGY, player.energy + amount));
-}
-
 function resolveSingleShot(game, attacker, defender, x, y, source) {
-  const settings = modeSettings(game);
   const ship = findShipAt(defender, x, y);
   const shot = {
     x,
@@ -654,13 +693,7 @@ function resolveSingleShot(game, attacker, defender, x, y, source) {
     const sunk = isShipSunkByShots(game.shotsByPlayer[attacker.id], ship);
     if (sunk) {
       markSunkShipShots(game.shotsByPlayer[attacker.id], ship);
-      if (settings.abilities) {
-        addEnergy(attacker, 3);
-      }
       return { shot, hit: true, sunkShip: ship };
-    }
-    if (settings.abilities) {
-      addEnergy(attacker, 1);
     }
     return { shot, hit: true, sunkShip: null };
   }
@@ -791,18 +824,16 @@ function performSonar(game, attacker, defender, x, y) {
   if (!modeSettings(game).abilities) {
     fail(409, 'Sonar finns bara i Arcade-laget.');
   }
-  if (attacker.energy < SONAR_COST) {
-    fail(409, 'Du har inte tillräckligt med energi för sonar.');
-  }
   if (attacker.sonarScans.some((scan) => scan.x === x && scan.y === y)) {
     fail(409, 'Du har redan pingat den rutan med sonar.');
   }
 
   const count = regionCells(x, y, 1).filter((cell) => findShipAt(defender, cell.x, cell.y)).length;
-  addEnergy(attacker, -SONAR_COST);
+  useAbilityCharge(attacker, game, 'sonar', 'Sonar');
   attacker.sonarScans.push({ x, y, count, at: Date.now() });
   logEvent(game, 'power', `${attacker.name} använde sonar vid ${formatCell(x, y)}.`);
-  return { ability: 'sonar', count };
+  setTurn(game, defender.id);
+  return { ability: 'sonar', count, charges: publicAbilityCharges(attacker, game) };
 }
 
 function barrageCells(centerX, centerY) {
@@ -819,16 +850,13 @@ function performBarrage(game, attacker, defender, x, y) {
   if (!modeSettings(game).abilities) {
     fail(409, 'Barrage finns bara i Arcade-laget.');
   }
-  if (attacker.energy < BARRAGE_COST) {
-    fail(409, 'Du har inte tillräckligt med energi för barrage.');
-  }
 
   const targets = barrageCells(x, y).filter((cell) => !hasShotAt(game, attacker.id, cell.x, cell.y));
   if (targets.length === 0) {
     fail(409, 'Barrage-området är redan beskjutet.');
   }
 
-  addEnergy(attacker, -BARRAGE_COST);
+  useAbilityCharge(attacker, game, 'barrage', 'Barrage');
   const outcomes = targets.map((cell) => resolveSingleShot(game, attacker, defender, cell.x, cell.y, 'barrage'));
   const hits = outcomes.filter((outcome) => outcome.hit);
   const sunkNames = [...new Set(outcomes.filter((outcome) => outcome.sunkShip).map((outcome) => outcome.sunkShip.name))];
@@ -841,7 +869,7 @@ function performBarrage(game, attacker, defender, x, y) {
     setTurn(game, defender.id);
   }
 
-  return { ability: 'barrage', shots: outcomes.map((outcome) => outcome.shot) };
+  return { ability: 'barrage', shots: outcomes.map((outcome) => outcome.shot), charges: publicAbilityCharges(attacker, game) };
 }
 
 function performAction(codeInput, playerId, body, store = games) {
@@ -929,7 +957,8 @@ function serializeGame(game, playerId) {
       name: entry.name,
       isYou: entry.id === player.id,
       ready: entry.ready,
-      energy: entry.id === player.id && modeSettings(game).abilities ? entry.energy : undefined
+      energy: entry.id === player.id && modeSettings(game).abilities ? entry.energy : undefined,
+      abilityCharges: entry.id === player.id && modeSettings(game).abilities ? publicAbilityCharges(entry, game) : undefined
     })),
     turn: turnPlayer
       ? {
@@ -957,6 +986,7 @@ function serializeGame(game, playerId) {
     own: {
       ready: player.ready,
       energy: modeSettings(game).abilities ? player.energy : 0,
+      abilityCharges: modeSettings(game).abilities ? publicAbilityCharges(player, game) : initialAbilityCharges(game),
       ships: player.ships || [],
       incomingShots: opponent ? (game.shotsByPlayer[opponent.id] || []).map(cloneShot) : []
     },
@@ -1223,7 +1253,9 @@ if (require.main === module) {
 
 module.exports = {
   ARCADE_FLEET,
+  ARCADE_ABILITY_CHARGES,
   BARRAGE_COST,
+  BARRAGE_CHARGES,
   BOARD_SIZE,
   CLASSIC_FLEET,
   GAME_MODES,
@@ -1233,6 +1265,7 @@ module.exports = {
   GameError,
   MAX_ENERGY,
   SONAR_COST,
+  SONAR_CHARGES,
   abandonGame,
   createBotGame,
   createGame,
