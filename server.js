@@ -33,13 +33,18 @@ const GAME_MODES = Object.freeze({
   })
 });
 
-const FLEET = Object.freeze([
+const CLASSIC_FLEET = Object.freeze([
   Object.freeze({ id: 'carrier', name: 'Hangarfartyg', length: 5 }),
   Object.freeze({ id: 'battleship', name: 'Slagskepp', length: 4 }),
   Object.freeze({ id: 'cruiser', name: 'Kryssare', length: 3 }),
   Object.freeze({ id: 'submarine', name: 'Ubåt', length: 3 }),
   Object.freeze({ id: 'destroyer', name: 'Jagare', length: 2 })
 ]);
+const ARCADE_FLEET = Object.freeze([
+  ...CLASSIC_FLEET,
+  Object.freeze({ id: 'drone', name: 'Drönare', length: 1 })
+]);
+const FLEET = CLASSIC_FLEET;
 
 const games = new Map();
 const subscribers = new Map();
@@ -133,6 +138,10 @@ function normalizeMode(value) {
 function modeSettings(gameOrMode) {
   const mode = typeof gameOrMode === 'string' ? gameOrMode : gameOrMode && gameOrMode.mode;
   return GAME_MODES[normalizeMode(mode)];
+}
+
+function fleetForMode(gameOrMode = DEFAULT_MODE) {
+  return modeSettings(gameOrMode).abilities ? ARCADE_FLEET : CLASSIC_FLEET;
 }
 
 function publicMode(gameOrMode) {
@@ -368,9 +377,10 @@ function createGame(hostName, store = games, mode = DEFAULT_MODE) {
   return { game, code, playerId: host.id };
 }
 
-function randomFleet() {
+function randomFleet(gameOrMode = DEFAULT_MODE) {
+  const fleet = fleetForMode(gameOrMode);
   const ships = [];
-  for (const ship of FLEET) {
+  for (const ship of fleet) {
     let placed = false;
     for (let attempt = 0; attempt < 800 && !placed; attempt += 1) {
       const direction = crypto.randomInt(2) === 0 ? 'horizontal' : 'vertical';
@@ -391,7 +401,7 @@ function randomFleet() {
       fail(503, 'Datorn kunde inte placera sin flotta just nu.');
     }
   }
-  return validateFleet(ships);
+  return validateFleet(ships, gameOrMode);
 }
 
 function shipAtFleet(ships, x, y) {
@@ -401,7 +411,7 @@ function shipAtFleet(ships, x, y) {
 function createBotGame(hostName, store = games) {
   const { game, code, playerId } = createGame(hostName, store, 'classic');
   const bot = createBotPlayer();
-  bot.ships = randomFleet();
+  bot.ships = randomFleet(game);
   bot.ready = true;
   bot.energy = modeSettings(game).startingEnergy;
   bot.sonarScans = [];
@@ -494,15 +504,22 @@ function cellKey(x, y) {
   return `${x},${y}`;
 }
 
-function validateFleet(rawShips) {
+function validateFleet(rawShips, gameOrMode = DEFAULT_MODE) {
   if (!Array.isArray(rawShips)) {
     fail(400, 'Skeppen saknas.');
+  }
+
+  const fleet = fleetForMode(gameOrMode);
+  const allowedShipIds = new Set(fleet.map((ship) => ship.id));
+  const unexpectedShip = rawShips.find((ship) => ship && ship.id && !allowedShipIds.has(ship.id));
+  if (unexpectedShip) {
+    fail(400, `Flottan innehåller ett okänt skepp: ${unexpectedShip.id}.`);
   }
 
   const occupied = new Set();
   const normalized = [];
 
-  for (const fleetShip of FLEET) {
+  for (const fleetShip of fleet) {
     const candidates = rawShips.filter((ship) => ship && ship.id === fleetShip.id);
     if (candidates.length !== 1) {
       fail(400, `Flottan måste innehålla exakt ett ${fleetShip.name}.`);
@@ -566,7 +583,7 @@ function placeFleet(codeInput, playerId, rawShips, store = games) {
     fail(409, 'Du är redan redo.');
   }
 
-  player.ships = validateFleet(rawShips);
+  player.ships = validateFleet(rawShips, game);
   player.ready = true;
   player.energy = modeSettings(game).startingEnergy;
   player.sonarScans = [];
@@ -905,7 +922,7 @@ function serializeGame(game, playerId) {
       lobbyDurationMs: LOBBY_TTL_MS,
       maxDurationMs: GAME_TTL_MS
     },
-    fleet: FLEET,
+    fleet: fleetForMode(game),
     playerId: player.id,
     playerName: player.name,
     players: game.players.map((entry) => ({
@@ -1205,8 +1222,10 @@ if (require.main === module) {
 }
 
 module.exports = {
+  ARCADE_FLEET,
   BARRAGE_COST,
   BOARD_SIZE,
+  CLASSIC_FLEET,
   GAME_MODES,
   GAME_TTL_MS,
   LOBBY_TTL_MS,
@@ -1217,6 +1236,7 @@ module.exports = {
   abandonGame,
   createBotGame,
   createGame,
+  fleetForMode,
   joinGame,
   getHighScores,
   performAction,

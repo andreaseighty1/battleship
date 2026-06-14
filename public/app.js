@@ -9,13 +9,18 @@
 
   const BOARD_SIZE = 10;
   const MAX_ENERGY = 9;
-  const FLEET = [
+  const CLASSIC_FLEET = [
     { id: 'carrier', name: 'Hangarfartyg', length: 5 },
     { id: 'battleship', name: 'Slagskepp', length: 4 },
     { id: 'cruiser', name: 'Kryssare', length: 3 },
     { id: 'submarine', name: 'Ubåt', length: 3 },
     { id: 'destroyer', name: 'Jagare', length: 2 }
   ];
+  const ARCADE_FLEET = [
+    ...CLASSIC_FLEET,
+    { id: 'drone', name: 'Drönare', length: 1 }
+  ];
+  const FLEET = CLASSIC_FLEET;
   const GAME_MODES = [
     { id: 'classic', label: 'Classic', tag: 'Standard' },
     { id: 'arcade', label: 'Arcade', tag: 'Under byggnation' }
@@ -25,7 +30,8 @@
     battleship: assetUrl('gfx/ship_4_squares.png'),
     cruiser: assetUrl('gfx/ship_3_squares_v1.png'),
     submarine: assetUrl('gfx/ship_3_squares_v2.png'),
-    destroyer: assetUrl('gfx/ship_2_squares_v1.png')
+    destroyer: assetUrl('gfx/ship_2_squares_v1.png'),
+    drone: assetUrl('gfx/drone_placeholder.svg')
   };
   const BANNER_IMAGE = assetUrl('gfx/battleship_banner.png');
   const OWL_LOGO = assetUrl('gfx/42IO-logo-A-light.svg');
@@ -686,6 +692,25 @@
     return Boolean(currentMode().abilities);
   }
 
+  function localFleetForMode(modeOrId) {
+    return normalizeModeId(modeOrId && modeOrId.id ? modeOrId.id : modeOrId) === 'arcade' ? ARCADE_FLEET : CLASSIC_FLEET;
+  }
+
+  function currentFleet() {
+    if (state && Array.isArray(state.fleet) && state.fleet.length) {
+      return state.fleet;
+    }
+    return localFleetForMode(state && state.mode ? state.mode : selectedMode);
+  }
+
+  function shipDefinition(type) {
+    const id = String(type || '').trim();
+    return currentFleet().find((entry) => entry.id === id)
+      || ARCADE_FLEET.find((entry) => entry.id === id)
+      || CLASSIC_FLEET.find((entry) => entry.id === id)
+      || null;
+  }
+
   async function loadSession() {
     const session = storage.get();
     if (!session || !session.code || !session.playerId) {
@@ -801,9 +826,10 @@
   }
 
   function resetLocalPlacement() {
+    const fleet = currentFleet();
     placedShips = [];
     hoverCell = null;
-    selectedShipId = FLEET[0].id;
+    selectedShipId = (fleet[0] || FLEET[0]).id;
     orientation = 'horizontal';
     animatedImpactKeys = new Set();
   }
@@ -1119,9 +1145,13 @@
   }
 
   function renderPlacement() {
-    const canReady = placedShips.length === FLEET.length;
+    const fleet = currentFleet();
+    const canReady = placedShips.length === fleet.length;
     const locked = state.own.ready;
-    const selectedShip = FLEET.find((ship) => ship.id === selectedShipId);
+    const selectedShip = fleet.find((ship) => ship.id === selectedShipId) || fleet.find((ship) => !placementForType(ship.id)) || fleet[0];
+    if (selectedShip && selectedShipId !== selectedShip.id) {
+      selectedShipId = selectedShip.id;
+    }
     const selectedPlacement = selectedShip ? placementForType(selectedShip.id) : null;
     const selectedText = selectedShip
       ? `${selectedShip.name}, ${selectedShip.length} rutor${selectedPlacement ? ' - vald för flytt' : ''}`
@@ -1137,10 +1167,10 @@
               <h2>Flotta</h2>
               <span>${locked ? 'Inväntar motståndaren' : escapeHtml(selectedText)}</span>
             </div>
-            <span class="chip">${locked ? 'Låst' : `${placedShips.length}/${FLEET.length}`}</span>
+            <span class="chip">${locked ? 'Låst' : `${placedShips.length}/${fleet.length}`}</span>
           </div>
           ${locked ? renderTimePanel() : ''}
-          <div class="fleet-list fleet-dock">${FLEET.map(renderShipButton).join('')}</div>
+          <div class="fleet-list fleet-dock">${fleet.map(renderShipButton).join('')}</div>
           <div class="toolbar placement-toolbar">
             <button class="btn" data-action="auto-place" type="button" ${locked ? 'disabled' : ''}>Auto</button>
             <button class="btn" data-action="clear-place" type="button" ${locked ? 'disabled' : ''}>Rensa</button>
@@ -1151,7 +1181,7 @@
             <div class="panel board-wrap placement-board-panel">
           <div class="board-title placement-board-title">
             <h2>Din spelplan</h2>
-            <span class="chip">${locked ? 'Låst' : `${placedShips.length}/${FLEET.length}`}</span>
+            <span class="chip">${locked ? 'Låst' : `${placedShips.length}/${fleet.length}`}</span>
           </div>
           <div class="placement-board-body">
             <div class="placement-rotate-rail">
@@ -1451,7 +1481,7 @@
         const classes = ['fleet-radar-cell'];
         const labels = [coordinateLabel(x, y)];
         if (ship) {
-          const shipDef = FLEET.find((entry) => entry.id === ship.type);
+          const shipDef = shipDefinition(ship.type);
           classes.push('is-ship');
           labels.push(shipDef ? shipDef.name : 'Skepp');
         }
@@ -1492,7 +1522,7 @@
       return '';
     }
 
-    const fleetShip = FLEET.find((entry) => entry.id === placement.type) || {};
+    const fleetShip = shipDefinition(placement.type) || {};
     const length = Number(placement.size || fleetShip.length || cells.length);
     const line = straightShipLine(cells, length);
     if (!line) {
@@ -1512,7 +1542,7 @@
     const revealClass = revealState ? ` is-revealed-enemy is-${revealState}-fleet` : '';
     const selectedClass = boardType === 'placement' && selectedShipId === placement.type ? ' is-selected-placement' : '';
     return `
-      <span class="ship-overlay ship-dir-${direction}${revealClass}${selectedClass}" style="${style}" aria-hidden="true">
+      <span class="ship-overlay ship-dir-${direction} ship-type-${escapeHtml(placement.type)}${revealClass}${selectedClass}" style="${style}" aria-hidden="true">
         <img class="ship-sprite" src="${escapeHtml(asset)}" alt="">
       </span>
     `;
@@ -1616,7 +1646,7 @@
     if (!hoverCell) {
       return { cells: [], valid: false, ship: null };
     }
-    const ship = FLEET.find((entry) => entry.id === selectedShipId);
+    const ship = currentFleet().find((entry) => entry.id === selectedShipId);
     if (!ship) {
       return { cells: [], valid: false, ship: null };
     }
@@ -1650,7 +1680,7 @@
       return null;
     }
     const type = String(ship.type || ship.id || '').trim();
-    const fleetShip = FLEET.find((entry) => entry.id === type);
+    const fleetShip = shipDefinition(type);
     if (!fleetShip) {
       return null;
     }
@@ -2084,7 +2114,8 @@
   }
 
   function placeShip(type, x, y, nextOrientation = orientation) {
-    const fleetShip = FLEET.find((entry) => entry.id === type);
+    const fleet = currentFleet();
+    const fleetShip = fleet.find((entry) => entry.id === type);
     if (!fleetShip) {
       return false;
     }
@@ -2103,7 +2134,7 @@
       candidate
     ];
     orientation = candidate.orientation;
-    const next = FLEET.find((entry) => !placementForType(entry.id));
+    const next = fleet.find((entry) => !placementForType(entry.id));
     selectedShipId = next ? next.id : candidate.type;
     const selectedPlacement = placementForType(selectedShipId);
     hoverCell = selectedPlacement ? { x: selectedPlacement.x, y: selectedPlacement.y } : null;
@@ -2157,7 +2188,7 @@
       return;
     }
 
-    const ship = FLEET.find((entry) => entry.id === selectedShipId);
+    const ship = currentFleet().find((entry) => entry.id === selectedShipId);
     if (!ship) {
       return;
     }
@@ -2185,7 +2216,7 @@
       return;
     }
     placedShips = ships;
-    selectedShipId = FLEET[0].id;
+    selectedShipId = (currentFleet()[0] || FLEET[0]).id;
     orientation = ships[0].orientation;
     hoverCell = { x: ships[0].x, y: ships[0].y };
     playUiSound('place');
@@ -2193,8 +2224,9 @@
   }
 
   function autoPlaceFleet() {
+    const fleet = currentFleet();
     const ships = [];
-    for (const ship of FLEET) {
+    for (const ship of fleet) {
       let placed = false;
       for (let attempt = 0; attempt < 500 && !placed; attempt += 1) {
         const nextOrientation = Math.random() > 0.5 ? 'horizontal' : 'vertical';
@@ -2213,11 +2245,11 @@
         }
       }
     }
-    return ships.length === FLEET.length ? ships : [];
+    return ships.length === fleet.length ? ships : [];
   }
 
   async function submitPlacement() {
-    if (!state || placedShips.length !== FLEET.length) {
+    if (!state || placedShips.length !== currentFleet().length) {
       return;
     }
     try {

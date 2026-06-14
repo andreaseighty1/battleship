@@ -1692,6 +1692,28 @@ button.cell:not(:disabled):hover {
   transform-origin: center;
 }
 
+.ship-type-drone::before {
+  inset: 14%;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(126, 249, 255, 0.5), rgba(10, 65, 86, 0.18) 64%, transparent 72%);
+  box-shadow:
+    0 0 10px rgba(68, 226, 245, 0.38),
+    inset 0 0 8px rgba(255, 255, 255, 0.16);
+}
+
+.ship-type-drone .ship-sprite {
+  left: 7%;
+  top: 7%;
+  width: 86%;
+  height: 86%;
+}
+
+.ship-button[data-ship="drone"] .ship-pips span {
+  background: #79f7ff;
+  box-shadow: 0 0 8px rgba(121, 247, 255, 0.74);
+}
+
 .ship-overlay.is-revealed-enemy {
   z-index: 3;
 }
@@ -3291,7 +3313,7 @@ button.cell:not(:disabled):hover {
 
   .fleet-dock {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(42px, 1fr));
     gap: 4px;
     width: 100%;
     min-width: 0;

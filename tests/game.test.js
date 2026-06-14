@@ -3,7 +3,9 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
+  ARCADE_FLEET,
   BARRAGE_COST,
+  BOARD_SIZE,
   FLEET,
   GAME_TTL_MS,
   LOBBY_TTL_MS,
@@ -18,17 +20,31 @@ const {
   validateFleet
 } = require('../server');
 
-function fleetFromRows(startY = 0) {
-  return FLEET.map((ship, index) => ({
+function fleetFromRows(startY = 0, fleet = FLEET) {
+  return fleet.map((ship, index) => ({
     id: ship.id,
-    cells: Array.from({ length: ship.length }, (_, x) => ({ x, y: startY + index }))
+    cells: Array.from({ length: ship.length }, (_, x) => ({ x, y: (startY + index) % BOARD_SIZE }))
   }));
+}
+
+function arcadeFleetFromRows(startY = 0) {
+  return fleetFromRows(startY, ARCADE_FLEET);
 }
 
 test('validates a complete classic fleet', () => {
   const fleet = validateFleet(fleetFromRows(0));
   assert.equal(fleet.length, FLEET.length);
   assert.equal(fleet[0].cells.length, 5);
+});
+
+test('validates an arcade fleet with a one-cell drone', () => {
+  assert.throws(() => validateFleet(fleetFromRows(0), 'arcade'), /Drönare/);
+
+  const fleet = validateFleet(arcadeFleetFromRows(0), 'arcade');
+  const drone = fleet.find((ship) => ship.id === 'drone');
+  assert.equal(fleet.length, ARCADE_FLEET.length);
+  assert.equal(drone.name, 'Drönare');
+  assert.equal(drone.cells.length, 1);
 });
 
 test('rejects overlapping ships', () => {
@@ -90,8 +106,8 @@ test('hit keeps turn and miss passes it', () => {
   const store = new Map();
   const host = createGame('Ada', store, 'arcade');
   const guest = joinGame(host.code, 'Bo', store);
-  placeFleet(host.code, host.playerId, fleetFromRows(0), store);
-  placeFleet(host.code, guest.playerId, fleetFromRows(5), store);
+  placeFleet(host.code, host.playerId, arcadeFleetFromRows(0), store);
+  placeFleet(host.code, guest.playerId, arcadeFleetFromRows(5), store);
 
   performAction(host.code, host.playerId, { ability: 'shot', x: 0, y: 5 }, store);
   assert.equal(serializeGame(host.game, host.playerId).turn.isYou, true);
@@ -106,8 +122,8 @@ test('marks all hit cells when a ship is sunk', () => {
   const store = new Map();
   const host = createGame('Ada', store, 'arcade');
   const guest = joinGame(host.code, 'Bo', store);
-  placeFleet(host.code, host.playerId, fleetFromRows(0), store);
-  const guestFleet = fleetFromRows(5);
+  placeFleet(host.code, host.playerId, arcadeFleetFromRows(0), store);
+  const guestFleet = arcadeFleetFromRows(5);
   placeFleet(host.code, guest.playerId, guestFleet, store);
 
   const destroyer = guestFleet.find((ship) => ship.id === 'destroyer');
@@ -216,8 +232,8 @@ test('sonar spends energy without changing turn', () => {
   const store = new Map();
   const host = createGame('Ada', store, 'arcade');
   const guest = joinGame(host.code, 'Bo', store);
-  placeFleet(host.code, host.playerId, fleetFromRows(0), store);
-  placeFleet(host.code, guest.playerId, fleetFromRows(5), store);
+  placeFleet(host.code, host.playerId, arcadeFleetFromRows(0), store);
+  placeFleet(host.code, guest.playerId, arcadeFleetFromRows(5), store);
 
   const result = performAction(host.code, host.playerId, { ability: 'sonar', x: 0, y: 5 }, store);
   assert.equal(result.result.count, 4);
@@ -230,8 +246,8 @@ test('barrage spends energy and fires a cross pattern', () => {
   const store = new Map();
   const host = createGame('Ada', store, 'arcade');
   const guest = joinGame(host.code, 'Bo', store);
-  placeFleet(host.code, host.playerId, fleetFromRows(0), store);
-  placeFleet(host.code, guest.playerId, fleetFromRows(5), store);
+  placeFleet(host.code, host.playerId, arcadeFleetFromRows(0), store);
+  placeFleet(host.code, guest.playerId, arcadeFleetFromRows(5), store);
   host.game.players[0].energy = BARRAGE_COST;
 
   const result = performAction(host.code, host.playerId, { ability: 'barrage', x: 2, y: 5 }, store);
@@ -243,8 +259,8 @@ test('complete game can be won and records a fast-win score', () => {
   const store = new Map();
   const host = createGame('Ada', store, 'arcade');
   const guest = joinGame(host.code, 'Bo', store);
-  const hostFleet = fleetFromRows(0);
-  const guestFleet = fleetFromRows(5);
+  const hostFleet = arcadeFleetFromRows(0);
+  const guestFleet = arcadeFleetFromRows(5);
   placeFleet(host.code, host.playerId, hostFleet, store);
   placeFleet(host.code, guest.playerId, guestFleet, store);
 
@@ -266,5 +282,5 @@ test('complete game can be won and records a fast-win score', () => {
   assert.equal(hostState.score.misses, 1);
   assert.equal(hostState.stats.outgoing.hits, allGuestShipCells.length);
   assert.equal(hostState.stats.outgoing.misses, 1);
-  assert.equal(getHighScores().some((score) => score.code === host.code && score.winnerName === 'Ada' && score.misses === 1), false);
+  assert.equal(getHighScores().some((score) => score.code === host.code && score.winnerName === 'Ada' && score.misses === 1), true);
 });
