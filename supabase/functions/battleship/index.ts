@@ -606,8 +606,8 @@ function randomFleet(gameOrMode: any = DEFAULT_MODE): any[] {
   return validateFleet(ships, gameOrMode);
 }
 
-async function createBotGame(hostName: unknown): Promise<{ game: any; code: string; playerId: string }> {
-  const { game, code, playerId } = await createGame(hostName, 'classic');
+async function createBotGame(hostName: unknown, mode: unknown = DEFAULT_MODE): Promise<{ game: any; code: string; playerId: string }> {
+  const { game, code, playerId } = await createGame(hostName, mode);
   const bot = createBotPlayer();
   bot.ships = randomFleet(game);
   bot.ready = true;
@@ -1088,7 +1088,7 @@ Deno.serve(async (req) => {
     }
 
     if (parts[0] === 'create-bot') {
-      const { game, code, playerId } = await createBotGame(body.name);
+      const { game, code, playerId } = await createBotGame(body.name, body.mode);
       return json(201, { code, playerId, state: serializeGame(game, playerId) });
     }
 

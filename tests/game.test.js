@@ -193,6 +193,24 @@ test('classic bot game auto-places and fires back', () => {
   assert.equal(afterExchange.own.incomingShots.length, 1);
 });
 
+test('arcade bot game keeps arcade fleet and powers', () => {
+  const store = new Map();
+  const host = createBotGame('Ada', store, 'arcade');
+  const lobbyState = serializeGame(host.game, host.playerId);
+  const bot = host.game.players.find((player) => player.isBot);
+
+  assert.equal(lobbyState.status, 'placing');
+  assert.equal(lobbyState.mode.id, 'arcade');
+  assert.equal(lobbyState.target.opponentName, 'Datorn');
+  assert.equal(lobbyState.fleet.some((ship) => ship.id === 'drone'), true);
+  assert.equal(bot.ships.some((ship) => ship.id === 'drone'), true);
+
+  placeFleet(host.code, host.playerId, arcadeFleetFromRows(0), store);
+  const state = serializeGame(host.game, host.playerId);
+  assert.equal(state.turn.isYou, true);
+  assert.equal(state.own.abilityCharges.sonar, ARCADE_ABILITY_CHARGES.sonar);
+});
+
 test('bot games do not record highscores', () => {
   const store = new Map();
   const host = createBotGame('Ada', store);

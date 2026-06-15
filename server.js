@@ -457,8 +457,8 @@ function shipAtFleet(ships, x, y) {
   return ships.find((ship) => ship.cells.some((cell) => cell.x === x && cell.y === y)) || null;
 }
 
-function createBotGame(hostName, store = games) {
-  const { game, code, playerId } = createGame(hostName, store, 'classic');
+function createBotGame(hostName, store = games, mode = DEFAULT_MODE) {
+  const { game, code, playerId } = createGame(hostName, store, mode);
   const bot = createBotPlayer();
   bot.ships = randomFleet(game);
   bot.ready = true;
@@ -1143,7 +1143,7 @@ async function handleApi(req, res, url) {
     }
 
     if (parts[1] === 'create-bot') {
-      const { game, code, playerId } = createBotGame(body.name);
+      const { game, code, playerId } = createBotGame(body.name, games, body.mode);
       sendJson(res, 201, { code, playerId, state: serializeGame(game, playerId) });
       return;
     }

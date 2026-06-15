@@ -1051,7 +1051,7 @@
             <button class="menu-card" data-action="create-bot" type="button">
               <span class="menu-icon icon-bot" aria-hidden="true"></span>
               <strong>Mot datorn</strong>
-              <span>Classic</span>
+              <span>${escapeHtml(modeLabel(selectedMode))}</span>
             </button>
             <button class="menu-card" data-action="show-scores" type="button">
               <span class="menu-icon icon-trophy" aria-hidden="true"></span>
@@ -2121,8 +2121,8 @@
     playerNameDraft = name;
     writePlayerName(name);
     try {
-      const data = await api('/api/create-bot', { name });
-      selectedMode = 'classic';
+      const data = await api('/api/create-bot', { name, mode: selectedMode });
+      selectedMode = normalizeModeId(data.state && data.state.mode ? data.state.mode.id : selectedMode);
       storage.set({ backend: backendMode, code: data.code, playerId: data.playerId });
       state = data.state;
       activePage = 'home';
