@@ -81,6 +81,11 @@
   const PLAYER_NAME_KEY = 'battleship-player-name';
   const SCORE_PREVIEW_LIMIT = 5;
   const SCORE_PAGE_LIMIT = 50;
+  const SCORE_CATEGORIES = [
+    { id: 'fastest', label: 'Snabbast' },
+    { id: 'accuracy', label: 'Träffsäkerhet' },
+    { id: 'misses', label: 'Minst missar' }
+  ];
   const COPYRIGHT_NOTICE = '© 2026 Andreas Jonsson & 42 Improbable Owls';
 
   const app = document.querySelector('#app');
@@ -106,6 +111,8 @@
   let mobileInfoOpen = false;
   let mobileLogOpen = false;
   let abilityPanelOpen = false;
+  let selectedScoreMode = 'classic';
+  let selectedScoreCategory = 'fastest';
   let playerNameDraft = readPlayerName();
   let toastTimer = null;
   let scores = [];
@@ -518,10 +525,16 @@
   async function loadScores() {
     try {
       const data = await fetchScores();
-      scores = Array.isArray(data.scores) ? data.scores.filter((score) => !isHiddenScore(score)) : [];
+      scores = Array.isArray(data.scores) ? data.scores.filter((score) => !isHiddenScore(score) && !isBotScore(score)) : [];
     } catch {
       scores = [];
     }
+  }
+
+  function isBotScore(score) {
+    const opponent = String(score && score.opponentName || '').trim().toLowerCase();
+    const winner = String(score && score.winnerName || '').trim().toLowerCase();
+    return ['datorn', 'ai', 'computer'].includes(opponent) || ['datorn', 'ai', 'computer'].includes(winner);
   }
 
   function isHiddenScore(score) {
@@ -532,6 +545,38 @@
       && Number(score.shots || 0) === 18
       && Number(score.hits || 0) === 17
       && Number(score.misses || 0) === 1;
+  }
+
+  function scoreCategoryLabel(category = selectedScoreCategory) {
+    const found = SCORE_CATEGORIES.find((entry) => entry.id === category);
+    return found ? found.label : SCORE_CATEGORIES[0].label;
+  }
+
+  function compareScoreRows(category) {
+    return (a, b) => {
+      if (category === 'accuracy') {
+        return Number(b.accuracy || 0) - Number(a.accuracy || 0)
+          || Number(a.misses || 0) - Number(b.misses || 0)
+          || Number(a.durationMs || 0) - Number(b.durationMs || 0)
+          || Number(a.finishedAt || 0) - Number(b.finishedAt || 0);
+      }
+      if (category === 'misses') {
+        return Number(a.misses || 0) - Number(b.misses || 0)
+          || Number(a.durationMs || 0) - Number(b.durationMs || 0)
+          || Number(a.shots || 0) - Number(b.shots || 0)
+          || Number(a.finishedAt || 0) - Number(b.finishedAt || 0);
+      }
+      return Number(a.durationMs || 0) - Number(b.durationMs || 0)
+        || Number(a.shots || 0) - Number(b.shots || 0)
+        || Number(a.finishedAt || 0) - Number(b.finishedAt || 0);
+    };
+  }
+
+  function scoresFor(mode = selectedScoreMode, category = selectedScoreCategory) {
+    return scores
+      .filter((score) => normalizeModeId(score.mode) === normalizeModeId(mode))
+      .slice()
+      .sort(compareScoreRows(category));
   }
 
   function formatDuration(ms) {
@@ -1110,6 +1155,7 @@
   }
 
   function renderScoresPage() {
+    const visibleScores = scoresFor();
     return `
       <section class="scores-page themed-screen">
         ${renderTitleBanner('compact-banner-card', renderBannerHud('scores'))}
@@ -1117,12 +1163,30 @@
           <div class="scores-header">
             <div>
               <h2>Topplista</h2>
-              <span>${scores.length ? `${Math.min(scores.length, SCORE_PAGE_LIMIT)} bästa matcher` : 'Inga matcher ännu'}</span>
+              <span>${visibleScores.length ? `${Math.min(visibleScores.length, SCORE_PAGE_LIMIT)} ${scoreCategoryLabel().toLowerCase()} - ${modeLabel(selectedScoreMode)}` : `Inga ${modeLabel(selectedScoreMode)}-matcher ännu`}</span>
             </div>
           </div>
-          ${renderScoreList(SCORE_PAGE_LIMIT, 'full')}
+          ${renderScoreFilters()}
+          ${renderScoreList(visibleScores, SCORE_PAGE_LIMIT, 'full')}
         </div>
       </section>
+    `;
+  }
+
+  function renderScoreFilters() {
+    return `
+      <div class="score-filters" aria-label="Topplistefilter">
+        <div class="score-filter-group" role="group" aria-label="Spelläge">
+          ${GAME_MODES.map((mode) => `
+            <button class="btn ghost score-filter ${selectedScoreMode === mode.id ? 'is-active' : ''}" data-action="score-mode" data-score-mode="${escapeHtml(mode.id)}" type="button">${escapeHtml(mode.label)}</button>
+          `).join('')}
+        </div>
+        <div class="score-filter-group" role="group" aria-label="Kategori">
+          ${SCORE_CATEGORIES.map((category) => `
+            <button class="btn ghost score-filter ${selectedScoreCategory === category.id ? 'is-active' : ''}" data-action="score-category" data-score-category="${escapeHtml(category.id)}" type="button">${escapeHtml(category.label)}</button>
+          `).join('')}
+        </div>
+      </div>
     `;
   }
 
@@ -1462,17 +1526,17 @@
     return `<div class="log-list">${entries.map((entry) => `<div class="log-item" data-type="${escapeHtml(entry.type)}">${escapeHtml(entry.text)}</div>`).join('')}</div>`;
   }
 
-  function renderScoreList(limit = SCORE_PREVIEW_LIMIT, variant = 'compact') {
-    if (!scores.length) {
+  function renderScoreList(scoreRows = scoresFor(), limit = SCORE_PREVIEW_LIMIT, variant = 'compact') {
+    if (!scoreRows.length) {
       return '<div class="empty-state compact">Ingen topplista än</div>';
     }
     const full = variant === 'full';
     return `
       <div class="score-list ${full ? 'is-full' : ''}">
-        ${scores.slice(0, limit).map((score, index) => `
+        ${scoreRows.slice(0, limit).map((score, index) => `
           <div class="score-row ${full ? 'is-full' : ''}">
             <strong>${index + 1}. ${escapeHtml(score.winnerName)}</strong>
-            <span>${escapeHtml(modeLabel(score.mode))} · ${formatDuration(score.durationMs)} · ${score.hits}/${score.shots} träff · ${score.misses} miss</span>
+            <span>${escapeHtml(modeLabel(score.mode))} · ${formatDuration(score.durationMs)} · ${score.hits}/${score.shots} träff · ${score.misses} miss · ${score.accuracy || 0}%</span>
             ${renderScoreMeta(score, full)}
           </div>
         `).join('')}
@@ -1486,6 +1550,7 @@
     }
     return `
       <div class="score-meta">
+        <span>${escapeHtml(scoreCategoryLabel())}</span>
         <span>${escapeHtml(modeLabel(score.mode))}</span>
         <span>${escapeHtml(formatDuration(score.durationMs))}</span>
         <span>${escapeHtml(score.hits)}/${escapeHtml(score.shots)} träff</span>
@@ -1699,8 +1764,29 @@
   function sonarAt(x, y) {
     const scans = state && state.target ? state.target.sonarScans : [];
     const center = scans.find((scan) => scan.x === x && scan.y === y) || null;
-    const inRegion = scans.some((scan) => Math.abs(scan.x - x) <= 1 && Math.abs(scan.y - y) <= 1);
+    const inRegion = scans.some((scan) => sonarScanCells(scan).some((cell) => cell.x === x && cell.y === y));
     return { center, inRegion };
+  }
+
+  function sonarScanCells(scan) {
+    const size = Number(scan && scan.size);
+    const originX = Number(scan && scan.originX);
+    const originY = Number(scan && scan.originY);
+    if (Number.isInteger(size) && size > 0 && Number.isInteger(originX) && Number.isInteger(originY)) {
+      const cells = [];
+      for (let y = originY; y < originY + size; y += 1) {
+        for (let x = originX; x < originX + size; x += 1) {
+          if (x >= 0 && y >= 0 && x < BOARD_SIZE && y < BOARD_SIZE) {
+            cells.push({ x, y });
+          }
+        }
+      }
+      return cells;
+    }
+    return Array.from({ length: 9 }, (_, index) => ({
+      x: Number(scan.x) + (index % 3) - 1,
+      y: Number(scan.y) + Math.floor(index / 3) - 1
+    })).filter((cell) => cell.x >= 0 && cell.y >= 0 && cell.x < BOARD_SIZE && cell.y < BOARD_SIZE);
   }
 
   function previewCells() {
@@ -1972,6 +2058,8 @@
     if (action === 'show-scores') return showScoresPage();
     if (action === 'show-home') return showHomePage();
     if (action === 'refresh-scores') return refreshScoresPage();
+    if (action === 'score-mode') return selectScoreMode(event.currentTarget.dataset.scoreMode);
+    if (action === 'score-category') return selectScoreCategory(event.currentTarget.dataset.scoreCategory);
     if (action === 'create-bot') return createBotGame();
     if (action === 'toggle-mobile-info') return toggleMobileInfo();
     if (action === 'close-mobile-info') return closeMobileInfo();
@@ -1995,6 +2083,18 @@
     playUiSound('click');
     activePage = 'scores';
     await loadScores();
+    render();
+  }
+
+  function selectScoreMode(mode) {
+    selectedScoreMode = normalizeModeId(mode);
+    playUiSound('select');
+    render();
+  }
+
+  function selectScoreCategory(category) {
+    selectedScoreCategory = SCORE_CATEGORIES.some((entry) => entry.id === category) ? category : SCORE_CATEGORIES[0].id;
+    playUiSound('select');
     render();
   }
 

@@ -17,6 +17,7 @@ const {
   performAction,
   placeFleet,
   serializeGame,
+  SONAR_SIZE,
   validateFleet
 } = require('../server');
 
@@ -236,11 +237,14 @@ test('sonar spends a charge and passes turn', () => {
   placeFleet(host.code, guest.playerId, arcadeFleetFromRows(5), store);
 
   const result = performAction(host.code, host.playerId, { ability: 'sonar', x: 0, y: 5 }, store);
-  assert.equal(result.result.count, 4);
+  assert.equal(result.result.count, 11);
   const state = serializeGame(host.game, host.playerId);
   assert.equal(state.turn.isYou, false);
   assert.equal(state.own.abilityCharges.sonar, ARCADE_ABILITY_CHARGES.sonar - 1);
   assert.equal(state.own.abilityCharges.barrage, ARCADE_ABILITY_CHARGES.barrage);
+  assert.equal(state.target.sonarScans[0].size, SONAR_SIZE);
+  assert.equal(state.target.sonarScans[0].originX, 0);
+  assert.equal(state.target.sonarScans[0].originY, 4);
 });
 
 test('barrage spends a charge and fires a cross pattern', () => {

@@ -4,6 +4,7 @@ const BOARD_SIZE = 10;
 const SONAR_COST = 2;
 const BARRAGE_COST = 5;
 const MAX_ENERGY = 9;
+const SONAR_SIZE = 4;
 const SONAR_CHARGES = 3;
 const BARRAGE_CHARGES = 1;
 const ARCADE_ABILITY_CHARGES = Object.freeze({
@@ -12,7 +13,7 @@ const ARCADE_ABILITY_CHARGES = Object.freeze({
 });
 const LOBBY_TTL_MS = 5 * 60 * 1000;
 const GAME_TTL_MS = 48 * 60 * 60 * 1000;
-const SCORE_LIMIT = 50;
+const SCORE_FETCH_LIMIT = 250;
 const DEFAULT_MODE = 'classic';
 const GAME_MODES = Object.freeze({
   classic: Object.freeze({
@@ -384,6 +385,12 @@ function isHiddenScore(score: any): boolean {
     && Number(score.misses || 0) === 1;
 }
 
+function isBotScore(score: any): boolean {
+  const opponent = String(score?.opponentName || '').trim().toLowerCase();
+  const winner = String(score?.winnerName || '').trim().toLowerCase();
+  return ['datorn', 'ai', 'computer'].includes(opponent) || ['datorn', 'ai', 'computer'].includes(winner);
+}
+
 async function getHighScores(): Promise<any[]> {
   let { data, error } = await admin!
     .from('battleship_scores')
@@ -391,7 +398,7 @@ async function getHighScores(): Promise<any[]> {
     .order('duration_ms', { ascending: true })
     .order('shots', { ascending: true })
     .order('finished_at', { ascending: true })
-    .limit(SCORE_LIMIT + 10);
+    .limit(SCORE_FETCH_LIMIT);
   if (error && error.message.includes('mode')) {
     const fallback = await admin!
       .from('battleship_scores')
@@ -399,7 +406,7 @@ async function getHighScores(): Promise<any[]> {
       .order('duration_ms', { ascending: true })
       .order('shots', { ascending: true })
       .order('finished_at', { ascending: true })
-      .limit(SCORE_LIMIT + 10);
+      .limit(SCORE_FETCH_LIMIT);
     data = fallback.data;
     error = fallback.error;
   }
@@ -416,8 +423,8 @@ async function getHighScores(): Promise<any[]> {
       misses: score.misses,
       finishedAt: new Date(score.finished_at).getTime()
     }))
-    .filter((score: any) => !isHiddenScore(score))
-    .slice(0, SCORE_LIMIT)
+    .filter((score: any) => !isHiddenScore(score) && !isBotScore(score))
+    .slice(0, SCORE_FETCH_LIMIT)
     .map(publicScore);
 }
 
@@ -435,6 +442,10 @@ function shotStatsFor(game: any, playerId: string): any {
 
 async function recordHighScore(game: any, winner: any): Promise<any> {
   if (game.score) return game.score;
+  if (game.players.some(isBotPlayer)) {
+    game.finishedAt = game.finishedAt || Date.now();
+    return null;
+  }
 
   const opponent = getOpponent(game, winner.id);
   const finishedAt = Date.now();
@@ -888,14 +899,16 @@ function runBotTurns(game: any): void {
   }
 }
 
-function regionCells(centerX: number, centerY: number, radius: number): Array<{ x: number; y: number }> {
+function sonarRegion(x: number, y: number): { originX: number; originY: number; size: number; cells: Array<{ x: number; y: number }> } {
+  const originX = Math.min(Math.max(0, x - 1), BOARD_SIZE - SONAR_SIZE);
+  const originY = Math.min(Math.max(0, y - 1), BOARD_SIZE - SONAR_SIZE);
   const cells = [];
-  for (let y = centerY - radius; y <= centerY + radius; y += 1) {
-    for (let x = centerX - radius; x <= centerX + radius; x += 1) {
-      if (x >= 0 && y >= 0 && x < BOARD_SIZE && y < BOARD_SIZE) cells.push({ x, y });
+  for (let scanY = originY; scanY < originY + SONAR_SIZE; scanY += 1) {
+    for (let scanX = originX; scanX < originX + SONAR_SIZE; scanX += 1) {
+      cells.push({ x: scanX, y: scanY });
     }
   }
-  return cells;
+  return { originX, originY, size: SONAR_SIZE, cells };
 }
 
 function performSonar(game: any, attacker: any, defender: any, x: number, y: number): any {
@@ -903,9 +916,10 @@ function performSonar(game: any, attacker: any, defender: any, x: number, y: num
   if (attacker.sonarScans.some((scan: any) => scan.x === x && scan.y === y)) {
     fail(409, 'You already scanned that cell.');
   }
-  const count = regionCells(x, y, 1).filter((cell) => findShipAt(defender, cell.x, cell.y)).length;
+  const scan = sonarRegion(x, y);
+  const count = scan.cells.filter((cell) => findShipAt(defender, cell.x, cell.y)).length;
   useAbilityCharge(attacker, game, 'sonar', 'Sonar');
-  attacker.sonarScans.push({ x, y, count, at: Date.now() });
+  attacker.sonarScans.push({ x, y, originX: scan.originX, originY: scan.originY, size: scan.size, count, at: Date.now() });
   logEvent(game, 'power', `${attacker.name} använde sonar vid ${formatCell(x, y)}.`);
   setTurn(game, defender.id);
   return { ability: 'sonar', count, charges: publicAbilityCharges(attacker, game) };

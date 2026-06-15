@@ -13,6 +13,7 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const SONAR_COST = 2;
 const BARRAGE_COST = 5;
 const MAX_ENERGY = 9;
+const SONAR_SIZE = 4;
 const SONAR_CHARGES = 3;
 const BARRAGE_CHARGES = 1;
 const ARCADE_ABILITY_CHARGES = Object.freeze({
@@ -55,7 +56,7 @@ const FLEET = CLASSIC_FLEET;
 const games = new Map();
 const subscribers = new Map();
 const highScores = [];
-const SCORE_LIMIT = 50;
+const SCORE_FETCH_LIMIT = 250;
 const PROFANITY_TERMS = Object.freeze([
   'fuck',
   'fucker',
@@ -335,8 +336,14 @@ function isHiddenScore(score) {
     && Number(score.misses || 0) === 1;
 }
 
-function getHighScores(limit = SCORE_LIMIT) {
-  return highScores.filter((score) => !isHiddenScore(score)).slice(0, limit).map(publicScore);
+function isBotScore(score) {
+  const opponent = String(score && score.opponentName || '').trim().toLowerCase();
+  const winner = String(score && score.winnerName || '').trim().toLowerCase();
+  return ['datorn', 'ai', 'computer'].includes(opponent) || ['datorn', 'ai', 'computer'].includes(winner);
+}
+
+function getHighScores(limit = SCORE_FETCH_LIMIT) {
+  return highScores.filter((score) => !isHiddenScore(score) && !isBotScore(score)).slice(0, limit).map(publicScore);
 }
 
 function shotStatsFor(game, playerId) {
@@ -380,7 +387,7 @@ function recordHighScore(game, winner) {
   game.score = score;
   highScores.push(score);
   highScores.sort(compareScores);
-  highScores.splice(SCORE_LIMIT + 10);
+  highScores.splice(SCORE_FETCH_LIMIT);
   return score;
 }
 
@@ -808,16 +815,16 @@ function runBotTurns(game) {
   }
 }
 
-function regionCells(centerX, centerY, radius) {
+function sonarRegion(x, y) {
+  const originX = Math.min(Math.max(0, x - 1), BOARD_SIZE - SONAR_SIZE);
+  const originY = Math.min(Math.max(0, y - 1), BOARD_SIZE - SONAR_SIZE);
   const cells = [];
-  for (let y = centerY - radius; y <= centerY + radius; y += 1) {
-    for (let x = centerX - radius; x <= centerX + radius; x += 1) {
-      if (x >= 0 && y >= 0 && x < BOARD_SIZE && y < BOARD_SIZE) {
-        cells.push({ x, y });
-      }
+  for (let scanY = originY; scanY < originY + SONAR_SIZE; scanY += 1) {
+    for (let scanX = originX; scanX < originX + SONAR_SIZE; scanX += 1) {
+      cells.push({ x: scanX, y: scanY });
     }
   }
-  return cells;
+  return { originX, originY, size: SONAR_SIZE, cells };
 }
 
 function performSonar(game, attacker, defender, x, y) {
@@ -828,9 +835,10 @@ function performSonar(game, attacker, defender, x, y) {
     fail(409, 'Du har redan pingat den rutan med sonar.');
   }
 
-  const count = regionCells(x, y, 1).filter((cell) => findShipAt(defender, cell.x, cell.y)).length;
+  const scan = sonarRegion(x, y);
+  const count = scan.cells.filter((cell) => findShipAt(defender, cell.x, cell.y)).length;
   useAbilityCharge(attacker, game, 'sonar', 'Sonar');
-  attacker.sonarScans.push({ x, y, count, at: Date.now() });
+  attacker.sonarScans.push({ x, y, originX: scan.originX, originY: scan.originY, size: scan.size, count, at: Date.now() });
   logEvent(game, 'power', `${attacker.name} använde sonar vid ${formatCell(x, y)}.`);
   setTurn(game, defender.id);
   return { ability: 'sonar', count, charges: publicAbilityCharges(attacker, game) };
@@ -1266,6 +1274,7 @@ module.exports = {
   MAX_ENERGY,
   SONAR_COST,
   SONAR_CHARGES,
+  SONAR_SIZE,
   abandonGame,
   createBotGame,
   createGame,
