@@ -1122,7 +1122,7 @@
           <div class="home-launch-controls">
             <input class="home-name-input" name="name" maxlength="24" placeholder="Ditt namn" autocomplete="nickname" value="${escapeHtml(playerNameDraft)}">
             ${renderModeSelector()}
-            ${renderCommanderSelector()}
+            ${renderCommanderSummary()}
             ${renderModeNotice()}
           </div>
           <div class="home-menu-grid">
@@ -1316,12 +1316,34 @@
     `;
   }
 
+  function renderCommanderSummary() {
+    if (selectedMode !== 'arcade') {
+      return '';
+    }
+    const selected = commanderDefinition(selectedCommanderId);
+    return `
+      <div class="commander-summary">
+        <img src="${escapeHtml(selected.image)}" alt="">
+        <span class="commander-summary-copy">
+          <strong>Vald taktik</strong>
+          <span>${escapeHtml(selected.label)} · ${escapeHtml(selected.effect)}</span>
+          <small>${escapeHtml(selected.quote)}</small>
+        </span>
+        <button class="btn ghost commander-summary-action" data-action="open-commander-prompt" type="button">Välj kort</button>
+      </div>
+    `;
+  }
+
   function renderCommanderPrompt() {
     if (!commanderPrompt) {
       return '';
     }
     const selected = commanderDefinition(selectedCommanderId);
-    const actionLabel = commanderPrompt.action === 'create-bot' ? 'Starta mot datorn' : 'Skapa lobby';
+    const actionLabel = commanderPrompt.action === 'create-bot'
+      ? 'Starta mot datorn'
+      : commanderPrompt.action === 'create'
+        ? 'Skapa lobby'
+        : 'Använd kort';
     return `
       <div class="commander-prompt-scrim" data-action="close-commander-prompt" aria-hidden="true"></div>
       <aside class="commander-prompt" role="dialog" aria-modal="true" aria-labelledby="commander-prompt-title">
@@ -2367,6 +2389,7 @@
     if (action === 'score-mode') return selectScoreMode(event.currentTarget.dataset.scoreMode);
     if (action === 'score-category') return selectScoreCategory(event.currentTarget.dataset.scoreCategory);
     if (action === 'commander-card') return selectCommander(event.currentTarget.dataset.commander);
+    if (action === 'open-commander-prompt') return openCommanderPrompt('select-only', null);
     if (action === 'confirm-commander') return confirmCommanderPrompt();
     if (action === 'close-commander-prompt') return closeCommanderPrompt();
     if (action === 'create-bot') return createBotGame();
@@ -2435,6 +2458,10 @@
     const prompt = commanderPrompt;
     commanderPrompt = null;
     playUiSound('ready');
+    if (prompt.action === 'select-only') {
+      render();
+      return;
+    }
     if (prompt.action === 'create-bot') {
       await executeCreateBotGame(prompt.payload);
       return;
