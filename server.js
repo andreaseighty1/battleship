@@ -39,6 +39,27 @@ const GAME_MODES = Object.freeze({
     startingEnergy: 2
   })
 });
+const DEFAULT_COMMANDER = 'offense';
+const COMMANDER_CARDS = Object.freeze({
+  offense: Object.freeze({
+    id: 'offense',
+    label: 'Offensiv Kommendör',
+    shortLabel: 'Offensiv',
+    effect: '+1 Barrage'
+  }),
+  scout: Object.freeze({
+    id: 'scout',
+    label: 'Scout',
+    shortLabel: 'Scout',
+    effect: '+1 Sonar ping'
+  }),
+  defensive: Object.freeze({
+    id: 'defensive',
+    label: 'Defensiv Kommendör',
+    shortLabel: 'Defensiv',
+    effect: 'Blockerar första träffen'
+  })
+});
 
 const CLASSIC_FLEET = Object.freeze([
   Object.freeze({ id: 'carrier', name: 'Hangarfartyg', length: 5 }),
@@ -161,15 +182,60 @@ function publicMode(gameOrMode) {
   };
 }
 
-function initialAbilityCharges(gameOrMode = DEFAULT_MODE) {
+function normalizeCommander(value) {
+  const commander = String(value || '').trim().toLowerCase();
+  return COMMANDER_CARDS[commander] ? commander : DEFAULT_COMMANDER;
+}
+
+function commanderForMode(value, gameOrMode = DEFAULT_MODE) {
+  if (!modeSettings(gameOrMode).abilities) {
+    return null;
+  }
+  return COMMANDER_CARDS[normalizeCommander(value)];
+}
+
+function publicCommander(player, gameOrMode = DEFAULT_MODE) {
+  const commander = commanderForMode(player && player.commanderId, gameOrMode);
+  return commander ? { ...commander } : null;
+}
+
+function initialCommanderState(player, gameOrMode = DEFAULT_MODE) {
+  const commander = commanderForMode(player && player.commanderId, gameOrMode);
+  return {
+    defenseBlocked: commander && commander.id === 'defensive' ? false : null
+  };
+}
+
+function commanderStateFor(player, gameOrMode = DEFAULT_MODE) {
+  if (!player) {
+    return initialCommanderState(player, gameOrMode);
+  }
+  if (!player.commanderState || typeof player.commanderState !== 'object') {
+    player.commanderState = initialCommanderState(player, gameOrMode);
+  }
+  if (commanderForMode(player.commanderId, gameOrMode)?.id === 'defensive' && typeof player.commanderState.defenseBlocked !== 'boolean') {
+    player.commanderState.defenseBlocked = false;
+  }
+  return player.commanderState;
+}
+
+function initialAbilityCharges(gameOrMode = DEFAULT_MODE, player = null) {
   if (!modeSettings(gameOrMode).abilities) {
     return { sonar: 0, barrage: 0 };
   }
-  return { ...ARCADE_ABILITY_CHARGES };
+  const charges = { ...ARCADE_ABILITY_CHARGES };
+  const commander = commanderForMode(player && player.commanderId, gameOrMode);
+  if (commander && commander.id === 'offense') {
+    charges.barrage += 1;
+  }
+  if (commander && commander.id === 'scout') {
+    charges.sonar += 1;
+  }
+  return charges;
 }
 
 function ensureAbilityCharges(player, gameOrMode = DEFAULT_MODE) {
-  const defaults = initialAbilityCharges(gameOrMode);
+  const defaults = initialAbilityCharges(gameOrMode, player);
   if (!modeSettings(gameOrMode).abilities) {
     return defaults;
   }
@@ -185,6 +251,16 @@ function ensureAbilityCharges(player, gameOrMode = DEFAULT_MODE) {
 
 function publicAbilityCharges(player, gameOrMode = DEFAULT_MODE) {
   return { ...ensureAbilityCharges(player, gameOrMode) };
+}
+
+function sonarScansFor(player) {
+  if (!player) {
+    return [];
+  }
+  if (!Array.isArray(player.sonarScans)) {
+    player.sonarScans = [];
+  }
+  return player.sonarScans;
 }
 
 function useAbilityCharge(player, gameOrMode, ability, label) {
@@ -210,7 +286,8 @@ function generateCode(store = games) {
   fail(503, 'Kunde inte skapa en unik rumskod just nu.');
 }
 
-function createPlayer(name, index) {
+function createPlayer(name, index, commander = null, gameOrMode = DEFAULT_MODE) {
+  const commanderCard = commanderForMode(commander, gameOrMode);
   return {
     id: randomId(),
     index,
@@ -219,7 +296,9 @@ function createPlayer(name, index) {
     ready: false,
     energy: 0,
     abilityCharges: null,
-    sonarScans: []
+    sonarScans: [],
+    commanderId: commanderCard ? commanderCard.id : null,
+    commanderState: commanderCard ? initialCommanderState({ commanderId: commanderCard.id }, gameOrMode) : null
   };
 }
 
@@ -320,8 +399,13 @@ function publicScore(score) {
   };
 }
 
-function createBotPlayer(name = 'Datorn') {
-  const bot = createPlayer(name, 1);
+function randomCommander() {
+  const commanders = Object.keys(COMMANDER_CARDS);
+  return commanders[crypto.randomInt(commanders.length)];
+}
+
+function createBotPlayer(name = 'Datorn', gameOrMode = DEFAULT_MODE) {
+  const bot = createPlayer(name, 1, randomCommander(), gameOrMode);
   bot.isBot = true;
   return bot;
 }
@@ -391,10 +475,10 @@ function recordHighScore(game, winner) {
   return score;
 }
 
-function createGame(hostName, store = games, mode = DEFAULT_MODE) {
+function createGame(hostName, store = games, mode = DEFAULT_MODE, commander = DEFAULT_COMMANDER) {
   const code = generateCode(store);
-  const host = createPlayer(hostName, 0);
   const gameMode = normalizeMode(mode);
+  const host = createPlayer(hostName, 0, commander, gameMode);
   const now = Date.now();
   const game = {
     code,
@@ -457,19 +541,19 @@ function shipAtFleet(ships, x, y) {
   return ships.find((ship) => ship.cells.some((cell) => cell.x === x && cell.y === y)) || null;
 }
 
-function createBotGame(hostName, store = games, mode = DEFAULT_MODE) {
-  const { game, code, playerId } = createGame(hostName, store, mode);
-  const bot = createBotPlayer();
+function createBotGame(hostName, store = games, mode = DEFAULT_MODE, commander = DEFAULT_COMMANDER) {
+  const { game, code, playerId } = createGame(hostName, store, mode, commander);
+  const bot = createBotPlayer('Datorn', game);
   bot.ships = randomFleet(game);
   bot.ready = true;
   bot.energy = modeSettings(game).startingEnergy;
-  bot.abilityCharges = initialAbilityCharges(game);
+  bot.abilityCharges = initialAbilityCharges(game, bot);
   bot.sonarScans = [];
   game.players.push(bot);
   game.shotsByPlayer[bot.id] = [];
   game.status = 'placing';
   touch(game);
-  logEvent(game, 'system', `${bot.name} Ã¤r redo. Placera din flotta!`);
+  logEvent(game, 'system', `${bot.name} är redo. Placera din flotta!`);
   return { game, code, playerId };
 }
 
@@ -495,7 +579,7 @@ function getOpponent(game, playerId) {
   return game.players.find((entry) => entry.id !== playerId) || null;
 }
 
-function joinGame(codeInput, playerName, store = games) {
+function joinGame(codeInput, playerName, store = games, commander = DEFAULT_COMMANDER) {
   const game = getGame(codeInput, store);
   if (game.players.length >= 2) {
     fail(409, 'Rummet är fullt.');
@@ -507,7 +591,7 @@ function joinGame(codeInput, playerName, store = games) {
     fail(409, 'Rummet har redan startat.');
   }
 
-  const player = createPlayer(playerName, 1);
+  const player = createPlayer(playerName, 1, commander, game);
   game.players.push(player);
   game.shotsByPlayer[player.id] = [];
   game.status = 'placing';
@@ -636,8 +720,9 @@ function placeFleet(codeInput, playerId, rawShips, store = games) {
   player.ships = validateFleet(rawShips, game);
   player.ready = true;
   player.energy = modeSettings(game).startingEnergy;
-  player.abilityCharges = initialAbilityCharges(game);
+  player.abilityCharges = initialAbilityCharges(game, player);
   player.sonarScans = [];
+  player.commanderState = initialCommanderState(player, game);
   touch(game);
   logEvent(game, 'system', `${player.name} är redo.`);
 
@@ -659,7 +744,7 @@ function findShipAt(player, x, y) {
 }
 
 function hasShotAt(game, attackerId, x, y) {
-  return (game.shotsByPlayer[attackerId] || []).some((shot) => shot.x === x && shot.y === y);
+  return (game.shotsByPlayer[attackerId] || []).some((shot) => shot.x === x && shot.y === y && shot.result !== 'blocked');
 }
 
 function isShipSunkByShots(shots, ship) {
@@ -684,15 +769,35 @@ function isFleetSunkBy(game, attackerId, defender) {
   return Boolean(defender.ships && defender.ships.every((ship) => isShipSunkByShots(shots, ship)));
 }
 
+function shouldBlockHit(defender, gameOrMode) {
+  if (commanderForMode(defender && defender.commanderId, gameOrMode)?.id !== 'defensive') {
+    return false;
+  }
+  const state = commanderStateFor(defender, gameOrMode);
+  if (state.defenseBlocked) {
+    return false;
+  }
+  state.defenseBlocked = true;
+  return true;
+}
+
 function resolveSingleShot(game, attacker, defender, x, y, source) {
   const ship = findShipAt(defender, x, y);
+  const blocked = ship && shouldBlockHit(defender, game);
   const shot = {
     x,
     y,
     source,
-    result: ship ? 'hit' : 'miss',
+    result: blocked ? 'blocked' : (ship ? 'hit' : 'miss'),
     at: Date.now()
   };
+
+  if (blocked) {
+    shot.shipId = ship.id;
+    shot.blocked = true;
+    game.shotsByPlayer[attacker.id].push(shot);
+    return { shot, hit: false, blocked: true, sunkShip: null };
+  }
 
   if (ship) {
     shot.shipId = ship.id;
@@ -728,7 +833,9 @@ function performShot(game, attacker, defender, x, y) {
   }
 
   const outcome = resolveSingleShot(game, attacker, defender, x, y, 'shot');
-  if (outcome.sunkShip) {
+  if (outcome.blocked) {
+    logEvent(game, 'power', `${defender.name} blockerade träffen vid ${formatCell(x, y)} med sin commander.`);
+  } else if (outcome.sunkShip) {
     logEvent(game, 'hit', `${attacker.name} sänkte ${outcome.sunkShip.name} vid ${formatCell(x, y)}.`);
   } else if (outcome.hit) {
     if (settings.hitKeepsTurn) {
@@ -785,13 +892,114 @@ function botTargetCandidates(game, botId) {
   return candidates;
 }
 
+function botKnownHits(game, botId) {
+  return (game.shotsByPlayer[botId] || [])
+    .filter((shot) => shot.result === 'hit' && !shot.sunkShipId);
+}
+
+function sonarRegionKey(region) {
+  return `${region.originX},${region.originY},${region.size}`;
+}
+
+function storedSonarRegion(scan) {
+  const originX = Number(scan && scan.originX);
+  const originY = Number(scan && scan.originY);
+  const size = Number(scan && scan.size);
+  if (Number.isInteger(originX) && Number.isInteger(originY) && Number.isInteger(size) && size > 0) {
+    return { originX, originY, size };
+  }
+  return sonarRegion(Number(scan && scan.x), Number(scan && scan.y));
+}
+
+function sonarScanCells(region) {
+  const cells = [];
+  for (let scanY = region.originY; scanY < region.originY + region.size; scanY += 1) {
+    for (let scanX = region.originX; scanX < region.originX + region.size; scanX += 1) {
+      if (scanX >= 0 && scanY >= 0 && scanX < BOARD_SIZE && scanY < BOARD_SIZE) {
+        cells.push({ x: scanX, y: scanY });
+      }
+    }
+  }
+  return cells;
+}
+
+function hasScannedSonarRegion(player, region) {
+  const key = sonarRegionKey(region);
+  return sonarScansFor(player).some((scan) => sonarRegionKey(storedSonarRegion(scan)) === key);
+}
+
+function botSonarTargetCandidates(game, bot) {
+  const candidates = [];
+  sonarScansFor(bot)
+    .filter((scan) => Number(scan.count || 0) > 0)
+    .forEach((scan) => {
+      sonarScanCells(storedSonarRegion(scan)).forEach((cell) => {
+        if (!hasShotAt(game, bot.id, cell.x, cell.y)) {
+          candidates.push(cell);
+        }
+      });
+    });
+  return candidates;
+}
+
 function chooseBotShot(game, bot) {
   const targets = botTargetCandidates(game, bot.id);
   if (targets.length) {
     return targets[crypto.randomInt(targets.length)];
   }
+  const scannedTargets = botSonarTargetCandidates(game, bot);
+  if (scannedTargets.length) {
+    return scannedTargets[crypto.randomInt(scannedTargets.length)];
+  }
   const available = unshotCells(game, bot.id);
   return available.length ? available[crypto.randomInt(available.length)] : null;
+}
+
+function chooseBotBarrage(game, bot) {
+  if (!modeSettings(game).abilities || ensureAbilityCharges(bot, game).barrage <= 0) {
+    return null;
+  }
+  const candidates = botKnownHits(game, bot.id)
+    .filter((hit) => barrageCells(hit.x, hit.y).some((cell) => !hasShotAt(game, bot.id, cell.x, cell.y)));
+  return candidates.length ? candidates[crypto.randomInt(candidates.length)] : null;
+}
+
+function chooseBotSonar(game, bot) {
+  if (!modeSettings(game).abilities || ensureAbilityCharges(bot, game).sonar <= 0 || botTargetCandidates(game, bot.id).length) {
+    return null;
+  }
+  if (botSonarTargetCandidates(game, bot).length || crypto.randomInt(100) >= 34) {
+    return null;
+  }
+
+  const regions = [];
+  const seen = new Set();
+  for (let y = 0; y < BOARD_SIZE; y += 1) {
+    for (let x = 0; x < BOARD_SIZE; x += 1) {
+      const region = sonarRegion(x, y);
+      const key = sonarRegionKey(region);
+      if (!seen.has(key) && !hasScannedSonarRegion(bot, region)) {
+        seen.add(key);
+        regions.push({ x, y });
+      }
+    }
+  }
+  return regions.length ? regions[crypto.randomInt(regions.length)] : null;
+}
+
+function chooseBotAction(game, bot) {
+  const barrage = chooseBotBarrage(game, bot);
+  if (barrage) {
+    return { ability: 'barrage', x: barrage.x, y: barrage.y };
+  }
+
+  const sonar = chooseBotSonar(game, bot);
+  if (sonar) {
+    return { ability: 'sonar', x: sonar.x, y: sonar.y };
+  }
+
+  const shot = chooseBotShot(game, bot);
+  return shot ? { ability: 'shot', x: shot.x, y: shot.y } : null;
 }
 
 function runBotTurns(game) {
@@ -805,12 +1013,18 @@ function runBotTurns(game) {
     if (!defender || !defender.ready) {
       return;
     }
-    const shot = chooseBotShot(game, bot);
-    if (!shot) {
+    const action = chooseBotAction(game, bot);
+    if (!action) {
       setTurn(game, defender.id);
       return;
     }
-    performShot(game, bot, defender, shot.x, shot.y);
+    if (action.ability === 'sonar') {
+      performSonar(game, bot, defender, action.x, action.y);
+    } else if (action.ability === 'barrage') {
+      performBarrage(game, bot, defender, action.x, action.y);
+    } else {
+      performShot(game, bot, defender, action.x, action.y);
+    }
     guard += 1;
   }
 }
@@ -831,14 +1045,14 @@ function performSonar(game, attacker, defender, x, y) {
   if (!modeSettings(game).abilities) {
     fail(409, 'Sonar finns bara i Arcade-laget.');
   }
-  if (attacker.sonarScans.some((scan) => scan.x === x && scan.y === y)) {
-    fail(409, 'Du har redan pingat den rutan med sonar.');
+  const scan = sonarRegion(x, y);
+  if (hasScannedSonarRegion(attacker, scan)) {
+    fail(409, 'Du har redan pingat det sonarområdet.');
   }
 
-  const scan = sonarRegion(x, y);
-  const count = scan.cells.filter((cell) => findShipAt(defender, cell.x, cell.y)).length;
+  const count = sonarScanCells(scan).filter((cell) => findShipAt(defender, cell.x, cell.y)).length;
   useAbilityCharge(attacker, game, 'sonar', 'Sonar');
-  attacker.sonarScans.push({ x, y, originX: scan.originX, originY: scan.originY, size: scan.size, count, at: Date.now() });
+  sonarScansFor(attacker).push({ x, y, originX: scan.originX, originY: scan.originY, size: scan.size, count, at: Date.now() });
   logEvent(game, 'power', `${attacker.name} använde sonar vid ${formatCell(x, y)}.`);
   setTurn(game, defender.id);
   return { ability: 'sonar', count, charges: publicAbilityCharges(attacker, game) };
@@ -867,9 +1081,11 @@ function performBarrage(game, attacker, defender, x, y) {
   useAbilityCharge(attacker, game, 'barrage', 'Barrage');
   const outcomes = targets.map((cell) => resolveSingleShot(game, attacker, defender, cell.x, cell.y, 'barrage'));
   const hits = outcomes.filter((outcome) => outcome.hit);
+  const blocked = outcomes.filter((outcome) => outcome.blocked);
   const sunkNames = [...new Set(outcomes.filter((outcome) => outcome.sunkShip).map((outcome) => outcome.sunkShip.name))];
   const sunkText = sunkNames.length ? ` Sänkte ${sunkNames.join(', ')}.` : '';
-  logEvent(game, hits.length ? 'hit' : 'miss', `${attacker.name} körde barrage vid ${formatCell(x, y)}: ${hits.length}/${targets.length} träff.${sunkText}`);
+  const blockedText = blocked.length ? ` ${blocked.length} blockerad.` : '';
+  logEvent(game, hits.length ? 'hit' : (blocked.length ? 'power' : 'miss'), `${attacker.name} körde barrage vid ${formatCell(x, y)}: ${hits.length}/${targets.length} träff.${blockedText}${sunkText}`);
 
   if (isFleetSunkBy(game, attacker.id, defender)) {
     finishGame(game, attacker);
@@ -925,6 +1141,7 @@ function cloneShot(shot) {
     at: shot.at
   };
   if (shot.shipId) clone.shipId = shot.shipId;
+  if (shot.blocked) clone.blocked = true;
   if (shot.sunkShipId) clone.sunkShipId = shot.sunkShipId;
   if (shot.sunkShipName) clone.sunkShipName = shot.sunkShipName;
   return clone;
@@ -965,6 +1182,7 @@ function serializeGame(game, playerId) {
       name: entry.name,
       isYou: entry.id === player.id,
       ready: entry.ready,
+      commander: publicCommander(entry, game),
       energy: entry.id === player.id && modeSettings(game).abilities ? entry.energy : undefined,
       abilityCharges: entry.id === player.id && modeSettings(game).abilities ? publicAbilityCharges(entry, game) : undefined
     })),
@@ -993,6 +1211,8 @@ function serializeGame(game, playerId) {
     },
     own: {
       ready: player.ready,
+      commander: publicCommander(player, game),
+      commanderState: commanderStateFor(player, game),
       energy: modeSettings(game).abilities ? player.energy : 0,
       abilityCharges: modeSettings(game).abilities ? publicAbilityCharges(player, game) : initialAbilityCharges(game),
       ships: player.ships || [],
@@ -1003,7 +1223,7 @@ function serializeGame(game, playerId) {
       opponentReady: opponent ? opponent.ready : false,
       ships: game.status === 'finished' && opponent ? opponent.ships || [] : [],
       outgoingShots: (game.shotsByPlayer[player.id] || []).map(cloneShot),
-      sonarScans: player.sonarScans.map((scan) => ({ ...scan }))
+      sonarScans: sonarScansFor(player).map((scan) => ({ ...scan }))
     },
     log: game.log.slice(-18)
   };
@@ -1137,19 +1357,19 @@ async function handleApi(req, res, url) {
     const body = await parseBody(req);
 
     if (parts[1] === 'create') {
-      const { game, code, playerId } = createGame(body.name, games, body.mode);
+      const { game, code, playerId } = createGame(body.name, games, body.mode, body.commander);
       sendJson(res, 201, { code, playerId, state: serializeGame(game, playerId) });
       return;
     }
 
     if (parts[1] === 'create-bot') {
-      const { game, code, playerId } = createBotGame(body.name, games, body.mode);
+      const { game, code, playerId } = createBotGame(body.name, games, body.mode, body.commander);
       sendJson(res, 201, { code, playerId, state: serializeGame(game, playerId) });
       return;
     }
 
     if (parts[1] === 'join') {
-      const { game, code, playerId } = joinGame(body.code, body.name);
+      const { game, code, playerId } = joinGame(body.code, body.name, games, body.commander);
       broadcast(game);
       sendJson(res, 200, { code, playerId, state: serializeGame(game, playerId) });
       return;

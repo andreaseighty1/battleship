@@ -202,6 +202,8 @@ test('arcade bot game keeps arcade fleet and powers', () => {
   assert.equal(lobbyState.status, 'placing');
   assert.equal(lobbyState.mode.id, 'arcade');
   assert.equal(lobbyState.target.opponentName, 'Datorn');
+  assert.equal(lobbyState.own.commander.id, 'offense');
+  assert.equal(lobbyState.players.every((player) => player.commander), true);
   assert.equal(lobbyState.fleet.some((ship) => ship.id === 'drone'), true);
   assert.equal(bot.ships.some((ship) => ship.id === 'drone'), true);
 
@@ -209,6 +211,68 @@ test('arcade bot game keeps arcade fleet and powers', () => {
   const state = serializeGame(host.game, host.playerId);
   assert.equal(state.turn.isYou, true);
   assert.equal(state.own.abilityCharges.sonar, ARCADE_ABILITY_CHARGES.sonar);
+  assert.equal(state.own.abilityCharges.barrage, ARCADE_ABILITY_CHARGES.barrage + 1);
+});
+
+test('commander cards adjust arcade ability charges', () => {
+  const store = new Map();
+  const host = createGame('Ada', store, 'arcade', 'scout');
+  const guest = joinGame(host.code, 'Bo', store, 'offense');
+  placeFleet(host.code, host.playerId, arcadeFleetFromRows(0), store);
+  placeFleet(host.code, guest.playerId, arcadeFleetFromRows(5), store);
+
+  const hostState = serializeGame(host.game, host.playerId);
+  const guestState = serializeGame(host.game, guest.playerId);
+
+  assert.equal(hostState.own.commander.id, 'scout');
+  assert.equal(hostState.own.abilityCharges.sonar, ARCADE_ABILITY_CHARGES.sonar + 1);
+  assert.equal(hostState.own.abilityCharges.barrage, ARCADE_ABILITY_CHARGES.barrage);
+  assert.equal(guestState.own.commander.id, 'offense');
+  assert.equal(guestState.own.abilityCharges.sonar, ARCADE_ABILITY_CHARGES.sonar);
+  assert.equal(guestState.own.abilityCharges.barrage, ARCADE_ABILITY_CHARGES.barrage + 1);
+});
+
+test('defensive commander blocks the first hit and can be shot again', () => {
+  const store = new Map();
+  const host = createGame('Ada', store, 'arcade', 'offense');
+  const guest = joinGame(host.code, 'Bo', store, 'defensive');
+  placeFleet(host.code, host.playerId, arcadeFleetFromRows(0), store);
+  placeFleet(host.code, guest.playerId, arcadeFleetFromRows(5), store);
+
+  const first = performAction(host.code, host.playerId, { ability: 'shot', x: 0, y: 5 }, store);
+  assert.equal(first.result.blocked, true);
+  assert.equal(first.result.shot.result, 'blocked');
+  assert.equal(serializeGame(host.game, guest.playerId).own.commanderState.defenseBlocked, true);
+
+  performAction(host.code, guest.playerId, { ability: 'shot', x: 9, y: 9 }, store);
+  const second = performAction(host.code, host.playerId, { ability: 'shot', x: 0, y: 5 }, store);
+  assert.equal(second.result.hit, true);
+  assert.equal(second.result.shot.result, 'hit');
+});
+
+test('arcade bot uses barrage to follow up a known hit', () => {
+  const store = new Map();
+  const host = createBotGame('Ada', store, 'arcade');
+  const bot = host.game.players.find((player) => player.isBot);
+  bot.ships = arcadeFleetFromRows(5);
+  bot.abilityCharges.barrage = 1;
+  placeFleet(host.code, host.playerId, arcadeFleetFromRows(0), store);
+
+  host.game.shotsByPlayer[bot.id].push({
+    x: 0,
+    y: 0,
+    source: 'shot',
+    result: 'hit',
+    shipId: 'carrier',
+    at: Date.now()
+  });
+
+  performAction(host.code, host.playerId, { ability: 'shot', x: 9, y: 9 }, store);
+  const botShots = host.game.shotsByPlayer[bot.id];
+
+  assert.equal(bot.abilityCharges.barrage, 0);
+  assert.equal(botShots.some((shot) => shot.source === 'barrage'), true);
+  assert.equal(serializeGame(host.game, host.playerId).turn.isYou, true);
 });
 
 test('bot games do not record highscores', () => {
@@ -259,10 +323,29 @@ test('sonar spends a charge and passes turn', () => {
   const state = serializeGame(host.game, host.playerId);
   assert.equal(state.turn.isYou, false);
   assert.equal(state.own.abilityCharges.sonar, ARCADE_ABILITY_CHARGES.sonar - 1);
-  assert.equal(state.own.abilityCharges.barrage, ARCADE_ABILITY_CHARGES.barrage);
+  assert.equal(state.own.abilityCharges.barrage, ARCADE_ABILITY_CHARGES.barrage + 1);
   assert.equal(state.target.sonarScans[0].size, SONAR_SIZE);
   assert.equal(state.target.sonarScans[0].originX, 0);
   assert.equal(state.target.sonarScans[0].originY, 4);
+});
+
+test('sonar cannot spend a charge on the same scanned area twice', () => {
+  const store = new Map();
+  const host = createGame('Ada', store, 'arcade');
+  const guest = joinGame(host.code, 'Bo', store);
+  placeFleet(host.code, host.playerId, arcadeFleetFromRows(0), store);
+  placeFleet(host.code, guest.playerId, arcadeFleetFromRows(5), store);
+
+  performAction(host.code, host.playerId, { ability: 'sonar', x: 0, y: 5 }, store);
+  performAction(host.code, guest.playerId, { ability: 'shot', x: 9, y: 9 }, store);
+
+  assert.throws(
+    () => performAction(host.code, host.playerId, { ability: 'sonar', x: 1, y: 5 }, store),
+    /sonar/
+  );
+  const state = serializeGame(host.game, host.playerId);
+  assert.equal(state.own.abilityCharges.sonar, ARCADE_ABILITY_CHARGES.sonar - 1);
+  assert.equal(state.target.sonarScans.length, 1);
 });
 
 test('barrage spends a charge and fires a cross pattern', () => {
@@ -276,7 +359,7 @@ test('barrage spends a charge and fires a cross pattern', () => {
   assert.equal(result.result.shots.length, 5);
   const state = serializeGame(host.game, host.playerId);
   assert.equal(state.turn.isYou, false);
-  assert.equal(state.own.abilityCharges.barrage, 0);
+  assert.equal(state.own.abilityCharges.barrage, ARCADE_ABILITY_CHARGES.barrage);
 });
 
 test('arcade powers cannot be used after charges run out', () => {

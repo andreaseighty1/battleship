@@ -8,6 +8,7 @@
   }
 
   const BOARD_SIZE = 10;
+  const SONAR_SIZE = 4;
   const DEFAULT_ABILITY_CHARGES = { sonar: 3, barrage: 1 };
   const CLASSIC_FLEET = [
     { id: 'carrier', name: 'Hangarfartyg', length: 5 },
@@ -24,6 +25,32 @@
   const GAME_MODES = [
     { id: 'classic', label: 'Classic', tag: 'Standard' },
     { id: 'arcade', label: 'Arcade', tag: 'Under byggnation' }
+  ];
+  const COMMANDER_CARDS = [
+    {
+      id: 'offense',
+      label: 'Offensiv Kommendör',
+      shortLabel: 'Offensiv',
+      effect: '+1 Barrage',
+      quote: 'Anfall är bästa försvar.',
+      image: assetUrl('gfx/ccard_offense.png')
+    },
+    {
+      id: 'scout',
+      label: 'Scout',
+      shortLabel: 'Scout',
+      effect: '+1 Sonar ping',
+      quote: 'Kunskap är makt.',
+      image: assetUrl('gfx/ccard_scout.png')
+    },
+    {
+      id: 'defensive',
+      label: 'Defensiv Kommendör',
+      shortLabel: 'Defensiv',
+      effect: 'Blockerar första träffen',
+      quote: 'Skydda flottan till varje pris.',
+      image: assetUrl('gfx/ccard_defensive.png')
+    }
   ];
   const SHIP_ASSETS = {
     carrier: assetUrl('gfx/ship_5_squares.png'),
@@ -105,8 +132,11 @@
   let orientation = 'horizontal';
   let placedShips = [];
   let hoverCell = null;
+  let targetPreviewCell = null;
   let selectedAbility = 'shot';
   let selectedMode = 'classic';
+  let selectedCommanderId = 'offense';
+  let commanderPrompt = null;
   let activePage = 'home';
   let mobileInfoOpen = false;
   let mobileLogOpen = false;
@@ -360,6 +390,11 @@
     const shotList = Array.isArray(shots) ? shots : [];
     const sunk = shotList.some((shot) => shot.sunkShipId) || fallbackHit === 'sunk';
     const hit = shotList.some((shot) => shot.result === 'hit') || fallbackHit === 'hit' || sunk;
+    const blocked = shotList.some((shot) => shot.result === 'blocked');
+    if (blocked) {
+      playSound('sonar', 0.46);
+      return;
+    }
     if (sunk) {
       playSound('sink', 0.62);
       return;
@@ -730,6 +765,57 @@
     return mode ? mode.label : 'Arcade';
   }
 
+  function normalizeCommanderId(value) {
+    const id = String(value || '').toLowerCase();
+    return COMMANDER_CARDS.some((entry) => entry.id === id) ? id : COMMANDER_CARDS[0].id;
+  }
+
+  function commanderDefinition(value) {
+    const id = typeof value === 'object' && value ? value.id : value;
+    return COMMANDER_CARDS.find((entry) => entry.id === normalizeCommanderId(id)) || COMMANDER_CARDS[0];
+  }
+
+  function commanderLabel(value) {
+    if (!value) return '';
+    const local = commanderDefinition(value);
+    return (typeof value === 'object' && value && value.shortLabel) || local.shortLabel || local.label;
+  }
+
+  function commanderEffect(value) {
+    if (!value) return '';
+    const local = commanderDefinition(value);
+    return (typeof value === 'object' && value && value.effect) || local.effect || '';
+  }
+
+  function commanderStatus(value) {
+    const commander = commanderDefinition(value);
+    if (commander.id === 'defensive') {
+      const blocked = Boolean(state && state.own && state.own.commanderState && state.own.commanderState.defenseBlocked);
+      return blocked ? 'Block använd' : 'Block redo';
+    }
+    return commanderEffect(value);
+  }
+
+  function renderCommanderLoadout(variant = 'panel') {
+    if (!state || !hasArcadePowers() || !state.own || !state.own.commander) {
+      return '';
+    }
+    const commander = commanderDefinition(state.own.commander);
+    const label = commanderLabel(state.own.commander);
+    const effect = commanderEffect(state.own.commander);
+    const status = commanderStatus(state.own.commander);
+    return `
+      <div class="commander-loadout is-${escapeHtml(variant)}">
+        <img src="${escapeHtml(commander.image)}" alt="">
+        <span class="commander-loadout-copy">
+          <strong>${escapeHtml(label)}</strong>
+          <span>${escapeHtml(effect)}</span>
+        </span>
+        <em>${escapeHtml(status)}</em>
+      </div>
+    `;
+  }
+
   function currentMode() {
     return state && state.mode ? state.mode : { id: 'arcade', label: 'Arcade', abilities: true, hitKeepsTurn: true };
   }
@@ -910,6 +996,7 @@
     const fleet = currentFleet();
     placedShips = [];
     hoverCell = null;
+    targetPreviewCell = null;
     selectedShipId = (fleet[0] || FLEET[0]).id;
     orientation = 'horizontal';
     animatedImpactKeys = new Set();
@@ -933,6 +1020,9 @@
     }
     if (state && hasArcadePowers() && selectedAbility !== 'shot' && abilityCharge(selectedAbility) <= 0) {
       selectedAbility = 'shot';
+    }
+    if (!state || state.status !== 'playing' || !state.turn || !state.turn.isYou || selectedAbility === 'shot') {
+      targetPreviewCell = null;
     }
     if (!state || state.status !== 'playing') {
       mobileInfoOpen = false;
@@ -1032,6 +1122,7 @@
           <div class="home-launch-controls">
             <input class="home-name-input" name="name" maxlength="24" placeholder="Ditt namn" autocomplete="nickname" value="${escapeHtml(playerNameDraft)}">
             ${renderModeSelector()}
+            ${renderCommanderSelector()}
             ${renderModeNotice()}
           </div>
           <div class="home-menu-grid">
@@ -1065,6 +1156,7 @@
             </button>
           </div>
         </div>
+        ${renderCommanderPrompt()}
       </section>
     `;
   }
@@ -1204,11 +1296,56 @@
     `;
   }
 
+  function renderCommanderSelector() {
+    if (selectedMode !== 'arcade') {
+      return '';
+    }
+    return `
+      <div class="commander-select" aria-label="Commander Cards">
+        ${COMMANDER_CARDS.map((card) => `
+          <button class="commander-card ${selectedCommanderId === card.id ? 'is-active' : ''}" data-action="commander-card" data-commander="${escapeHtml(card.id)}" type="button" aria-pressed="${selectedCommanderId === card.id ? 'true' : 'false'}">
+            <img src="${escapeHtml(card.image)}" alt="">
+            <span class="commander-card-copy">
+              <strong>${escapeHtml(card.label)}</strong>
+              <span>${escapeHtml(card.effect)}</span>
+              <small>${escapeHtml(card.quote)}</small>
+            </span>
+          </button>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function renderCommanderPrompt() {
+    if (!commanderPrompt) {
+      return '';
+    }
+    const selected = commanderDefinition(selectedCommanderId);
+    const actionLabel = commanderPrompt.action === 'create-bot' ? 'Starta mot datorn' : 'Skapa lobby';
+    return `
+      <div class="commander-prompt-scrim" data-action="close-commander-prompt" aria-hidden="true"></div>
+      <aside class="commander-prompt" role="dialog" aria-modal="true" aria-labelledby="commander-prompt-title">
+        <div class="commander-prompt-header">
+          <div>
+            <h2 id="commander-prompt-title">Välj Commander Card</h2>
+            <span>Arcade använder specialförmågor. Välj taktik innan flottan placeras.</span>
+          </div>
+          <button class="btn ghost side-close" data-action="close-commander-prompt" type="button">Stäng</button>
+        </div>
+        ${renderCommanderSelector()}
+        <div class="commander-prompt-actions">
+          <span>${escapeHtml(selected.label)} · ${escapeHtml(selected.effect)}</span>
+          <button class="btn primary" data-action="confirm-commander" type="button">${escapeHtml(actionLabel)}</button>
+        </div>
+      </aside>
+    `;
+  }
+
   function renderModeNotice() {
     return `
       <div class="mode-notice" role="note">
-        <strong>Classic är standard.</strong>
-        <span>Arcade är inte klar än och byggs vidare med specialförmågor.</span>
+        <strong>${selectedMode === 'arcade' ? 'Arcade: välj taktik.' : 'Classic är standard.'}</strong>
+        <span>${selectedMode === 'arcade' ? 'Commander Cards ger olika förmågor innan matchen startar.' : 'Arcade bygger vidare med Commander Cards och specialförmågor.'}</span>
       </div>
     `;
   }
@@ -1274,6 +1411,7 @@
             </div>
             <span class="chip">${locked ? 'Låst' : `${placedShips.length}/${fleet.length}`}</span>
           </div>
+          ${renderCommanderLoadout('placement')}
           ${locked ? renderTimePanel() : ''}
           <div class="fleet-list fleet-dock">${fleet.map(renderShipButton).join('')}</div>
           <div class="toolbar placement-toolbar">
@@ -1457,9 +1595,10 @@
           <h3>Förmågor</h3>
           <span class="chip">${escapeHtml(abilitySummary())}</span>
         </div>
+        ${renderCommanderLoadout('power')}
         <div class="toolbox ability-toolbox">
           ${renderAbility('shot', 'Skott', '∞', abilityDisabled('shot'))}
-          ${renderAbility('sonar', 'Sonar', `${charges.sonar} kvar`, abilityDisabled('sonar'))}
+          ${renderAbility('sonar', 'Sonar ping', `${charges.sonar} kvar`, abilityDisabled('sonar'))}
           ${renderAbility('barrage', 'Barrage', `${charges.barrage} kvar`, abilityDisabled('barrage'))}
         </div>
       </div>
@@ -1510,6 +1649,7 @@
         ${state.players.map((player) => `
           <div class="player-row">
             <strong>${escapeHtml(player.name)}${player.isYou ? ' · du' : ''}</strong>
+            ${player.commander ? `<span class="player-commander">${escapeHtml(commanderLabel(player.commander))} · ${escapeHtml(commanderEffect(player.commander))}</span>` : ''}
             <span class="player-state">${player.ready ? 'Redo' : 'Väntar'}</span>
           </div>
         `).join('')}
@@ -1611,8 +1751,8 @@
           labels.push(shipDef ? shipDef.name : 'Skepp');
         }
         if (incoming) {
-          classes.push(incoming.result === 'hit' ? 'is-hit' : 'is-miss');
-          labels.push(incoming.result === 'hit' ? 'Traff' : 'Miss');
+          classes.push(incoming.result === 'hit' ? 'is-hit' : (incoming.result === 'blocked' ? 'is-blocked' : 'is-miss'));
+          labels.push(incoming.result === 'hit' ? 'Träff' : (incoming.result === 'blocked' ? 'Blockerad' : 'Miss'));
           if (incoming.sunkShipId) {
             classes.push('is-sunk');
             labels.push('Sankt');
@@ -1697,9 +1837,10 @@
       const incoming = shotAt(state.own.incomingShots, x, y);
       if (ship) classes.push('is-ship');
       if (incoming) {
-        classes.push(incoming.result === 'hit' ? 'is-hit' : 'is-miss');
+        classes.push(incoming.result === 'hit' ? 'is-hit' : (incoming.result === 'blocked' ? 'is-blocked' : 'is-miss'));
         if (incoming.sunkShipId) classes.push('is-sunk');
         content += renderImpactPop(incoming.result, type, x, y, classes);
+        if (incoming.result === 'blocked') content += renderBlockedBadge();
         if (incoming.sunkShipId) content += renderSunkBadge(incoming.sunkShipName);
       }
     }
@@ -1707,15 +1848,28 @@
     if (type === 'target') {
       const outgoing = shotAt(state.target.outgoingShots, x, y);
       const scan = sonarAt(x, y);
-      if (scan.inRegion) classes.push('is-sonar');
+      const abilityPreview = targetAbilityPreviewFor(targetPreviewCell);
+      const inAbilityPreview = abilityPreview.cells.some((cell) => cell.x === x && cell.y === y);
+      if (scan.inRegion) classes.push('is-sonar', scan.contact ? 'is-sonar-contact' : 'is-sonar-empty');
+      if (inAbilityPreview) {
+        classes.push(
+          abilityPreview.valid ? 'is-ability-preview' : 'is-bad-ability-preview',
+          `is-${abilityPreview.ability}-preview`
+        );
+        if (sameCell(abilityPreview.origin, { x, y })) {
+          classes.push('is-ability-preview-origin');
+        }
+      }
       if (outgoing) {
-        classes.push(outgoing.result === 'hit' ? 'is-hit' : 'is-miss');
+        classes.push(outgoing.result === 'hit' ? 'is-hit' : (outgoing.result === 'blocked' ? 'is-blocked' : 'is-miss'));
         if (outgoing.sunkShipId) classes.push('is-sunk');
         content += renderImpactPop(outgoing.result, type, x, y, classes);
+        if (outgoing.result === 'blocked') content += renderBlockedBadge();
         if (outgoing.sunkShipId) content += renderSunkBadge(outgoing.sunkShipName);
       }
       if (scan.center && !outgoing) {
-        content = `<span class="scan-count">${scan.center.count}</span>`;
+        const scanCount = Number(scan.center.count || 0);
+        content = `<span class="scan-count ${scanCount > 0 ? 'is-contact' : 'is-empty'}">${scanCount}</span>`;
       }
       disabled = !(state.status === 'playing' && state.turn && state.turn.isYou);
     }
@@ -1742,7 +1896,14 @@
     if (result === 'miss') {
       return '<span class="impact-pop miss-pop" aria-hidden="true"></span>';
     }
+    if (result === 'blocked') {
+      return '<span class="impact-pop blocked-pop" aria-hidden="true"></span>';
+    }
     return '';
+  }
+
+  function renderBlockedBadge() {
+    return '<span class="blocked-badge" aria-hidden="true" title="Commander blockerade träffen">BLOCK</span>';
   }
 
   function renderSunkBadge(shipName) {
@@ -1751,7 +1912,12 @@
   }
 
   function shotAt(shots, x, y) {
-    return (shots || []).find((shot) => shot.x === x && shot.y === y) || null;
+    return [...(shots || [])].reverse().find((shot) => shot.x === x && shot.y === y) || null;
+  }
+
+  function resolvedShotAt(shots, x, y) {
+    const shot = shotAt(shots, x, y);
+    return shot && shot.result !== 'blocked' ? shot : null;
   }
 
   function shipAt(ships, x, y) {
@@ -1761,32 +1927,104 @@
       .find((ship) => getShipCells(ship).some((cell) => cell.x === x && cell.y === y)) || null;
   }
 
+  function sonarRegion(x, y) {
+    const originX = Math.min(Math.max(0, Number(x) - 1), BOARD_SIZE - SONAR_SIZE);
+    const originY = Math.min(Math.max(0, Number(y) - 1), BOARD_SIZE - SONAR_SIZE);
+    return { originX, originY, size: SONAR_SIZE };
+  }
+
+  function sonarRegionKey(region) {
+    return `${region.originX},${region.originY},${region.size}`;
+  }
+
+  function storedSonarRegion(scan) {
+    const originX = Number(scan && scan.originX);
+    const originY = Number(scan && scan.originY);
+    const size = Number(scan && scan.size);
+    if (Number.isInteger(originX) && Number.isInteger(originY) && Number.isInteger(size) && size > 0) {
+      return { originX, originY, size };
+    }
+    return sonarRegion(Number(scan && scan.x), Number(scan && scan.y));
+  }
+
+  function hasScannedSonarRegion(region) {
+    const scans = state && state.target ? state.target.sonarScans : [];
+    const key = sonarRegionKey(region);
+    return scans.some((scan) => sonarRegionKey(storedSonarRegion(scan)) === key);
+  }
+
+  function barrageCells(centerX, centerY) {
+    return [
+      { x: centerX, y: centerY },
+      { x: centerX, y: centerY - 1 },
+      { x: centerX + 1, y: centerY },
+      { x: centerX, y: centerY + 1 },
+      { x: centerX - 1, y: centerY }
+    ].filter((cell) => cell.x >= 0 && cell.y >= 0 && cell.x < BOARD_SIZE && cell.y < BOARD_SIZE);
+  }
+
+  function sameCell(a, b) {
+    return Boolean(a && b && Number(a.x) === Number(b.x) && Number(a.y) === Number(b.y));
+  }
+
+  function targetAbilityPreviewFor(cell, ability = selectedAbility) {
+    if (!cell || !hasArcadePowers() || ability === 'shot') {
+      return { ability: 'shot', cells: [], valid: false, reason: '' };
+    }
+    if (ability === 'sonar') {
+      const region = sonarRegion(cell.x, cell.y);
+      const cells = sonarScanCells(region);
+      const valid = abilityCharge('sonar') > 0 && !hasScannedSonarRegion(region);
+      return {
+        ability,
+        cells,
+        origin: { x: Number(cell.x), y: Number(cell.y) },
+        valid,
+        reason: valid ? '' : 'Det sonarområdet är redan pingat.'
+      };
+    }
+    if (ability === 'barrage') {
+      const cells = barrageCells(Number(cell.x), Number(cell.y));
+      const valid = abilityCharge('barrage') > 0 && cells.some((entry) => !resolvedShotAt(state.target.outgoingShots, entry.x, entry.y));
+      return {
+        ability,
+        cells,
+        origin: { x: Number(cell.x), y: Number(cell.y) },
+        valid,
+        reason: valid ? '' : 'Barrage-området är redan beskjutet.'
+      };
+    }
+    return { ability, cells: [], valid: false, reason: 'Okänd förmåga.' };
+  }
+
   function sonarAt(x, y) {
     const scans = state && state.target ? state.target.sonarScans : [];
     const center = scans.find((scan) => scan.x === x && scan.y === y) || null;
-    const inRegion = scans.some((scan) => sonarScanCells(scan).some((cell) => cell.x === x && cell.y === y));
-    return { center, inRegion };
+    const coveringScans = scans.filter((scan) => sonarScanCells(scan).some((cell) => cell.x === x && cell.y === y));
+    const contact = coveringScans.some((scan) => Number(scan.count || 0) > 0);
+    return { center, inRegion: coveringScans.length > 0, contact };
   }
 
   function sonarScanCells(scan) {
-    const size = Number(scan && scan.size);
     const originX = Number(scan && scan.originX);
     const originY = Number(scan && scan.originY);
-    if (Number.isInteger(size) && size > 0 && Number.isInteger(originX) && Number.isInteger(originY)) {
-      const cells = [];
-      for (let y = originY; y < originY + size; y += 1) {
-        for (let x = originX; x < originX + size; x += 1) {
-          if (x >= 0 && y >= 0 && x < BOARD_SIZE && y < BOARD_SIZE) {
-            cells.push({ x, y });
-          }
+    const size = Number(scan && scan.size);
+    if (!Number.isInteger(originX) || !Number.isInteger(originY) || !Number.isInteger(size) || size <= 0) {
+      return Array.from({ length: 9 }, (_, index) => ({
+        x: Number(scan.x) + (index % 3) - 1,
+        y: Number(scan.y) + Math.floor(index / 3) - 1
+      })).filter((cell) => cell.x >= 0 && cell.y >= 0 && cell.x < BOARD_SIZE && cell.y < BOARD_SIZE);
+    }
+    const region = { originX, originY, size };
+    const cells = [];
+    for (let y = region.originY; y < region.originY + region.size; y += 1) {
+      for (let x = region.originX; x < region.originX + region.size; x += 1) {
+        if (x >= 0 && y >= 0 && x < BOARD_SIZE && y < BOARD_SIZE) {
+          cells.push({ x, y });
         }
       }
-      return cells;
     }
-    return Array.from({ length: 9 }, (_, index) => ({
-      x: Number(scan.x) + (index % 3) - 1,
-      y: Number(scan.y) + Math.floor(index / 3) - 1
-    })).filter((cell) => cell.x >= 0 && cell.y >= 0 && cell.x < BOARD_SIZE && cell.y < BOARD_SIZE);
+    return cells;
   }
 
   function previewCells() {
@@ -1809,6 +2047,28 @@
       valid: canPlaceShip(candidate),
       ship: candidate
     };
+  }
+
+  function cellInCells(cell, cells) {
+    return (cells || []).some((entry) => sameCell(entry, cell));
+  }
+
+  function canConfirmPlacementPreview(cell) {
+    const preview = previewCells();
+    return Boolean(preview.valid && preview.ship && cellInCells(cell, preview.cells));
+  }
+
+  function confirmPlacementPreview() {
+    const preview = previewCells();
+    if (!preview.valid || !preview.ship) {
+      return false;
+    }
+    const placed = placeShip(preview.ship.type, preview.ship.x, preview.ship.y, preview.ship.orientation);
+    if (placed) {
+      playUiSound('place');
+      render();
+    }
+    return placed;
   }
 
   function getShipCells(ship) {
@@ -1926,6 +2186,7 @@
     document.querySelectorAll('input[name="mode"]').forEach((input) => {
       input.addEventListener('change', () => {
         selectedMode = normalizeModeId(input.value);
+        commanderPrompt = null;
         playUiSound('select');
         render();
       });
@@ -1935,6 +2196,7 @@
         const nextMode = normalizeModeId(option.dataset.mode);
         if (nextMode !== selectedMode) {
           selectedMode = nextMode;
+          commanderPrompt = null;
           playUiSound('select');
           render();
         }
@@ -1963,6 +2225,13 @@
       cell.addEventListener('click', handlePlacementClick);
     });
     document.querySelectorAll('[data-cell="target"]').forEach((cell) => {
+      cell.addEventListener('pointerenter', (event) => {
+        if (event.pointerType && event.pointerType !== 'mouse') {
+          return;
+        }
+        updateTargetPreview(cell);
+      });
+      cell.addEventListener('focus', () => updateTargetPreview(cell));
       cell.addEventListener('click', handleAction);
     });
     const placementBoard = document.querySelector('[data-board="placement"]');
@@ -1972,6 +2241,35 @@
         render();
       });
     }
+    const targetBoard = document.querySelector('[data-board="target"]');
+    if (targetBoard) {
+      targetBoard.addEventListener('pointerleave', (event) => {
+        if (event.pointerType && event.pointerType !== 'mouse') {
+          return;
+        }
+        clearTargetPreview();
+      });
+    }
+  }
+
+  function updateTargetPreview(cellElement) {
+    if (!state || state.status !== 'playing' || !state.turn || !state.turn.isYou || selectedAbility === 'shot') {
+      return;
+    }
+    const nextCell = readCell(cellElement);
+    if (sameCell(targetPreviewCell, nextCell)) {
+      return;
+    }
+    targetPreviewCell = nextCell;
+    render();
+  }
+
+  function clearTargetPreview() {
+    if (!targetPreviewCell) {
+      return;
+    }
+    targetPreviewCell = null;
+    render();
   }
 
   function handleScoresWheel(event) {
@@ -2003,8 +2301,16 @@
     playerNameDraft = name;
     writePlayerName(name);
     selectedMode = normalizeModeId(form.get('mode') || selectedMode);
+    if (selectedMode === 'arcade') {
+      openCommanderPrompt('create', { name, mode: selectedMode });
+      return;
+    }
+    await executeCreateGame({ name, mode: selectedMode });
+  }
+
+  async function executeCreateGame(payload) {
     try {
-      const data = await api('/api/create', { name, mode: selectedMode });
+      const data = await api('/api/create', { name: payload.name, mode: payload.mode, commander: selectedCommanderId });
       storage.set({ backend: backendMode, code: data.code, playerId: data.playerId });
       state = data.state;
       activePage = 'home';
@@ -2030,7 +2336,7 @@
     playerNameDraft = name;
     writePlayerName(name);
     try {
-      const data = await api('/api/join', { name, code: form.get('code') });
+      const data = await api('/api/join', { name, code: form.get('code'), commander: selectedCommanderId });
       storage.set({ backend: backendMode, code: data.code, playerId: data.playerId });
       state = data.state;
       activePage = 'home';
@@ -2060,6 +2366,9 @@
     if (action === 'refresh-scores') return refreshScoresPage();
     if (action === 'score-mode') return selectScoreMode(event.currentTarget.dataset.scoreMode);
     if (action === 'score-category') return selectScoreCategory(event.currentTarget.dataset.scoreCategory);
+    if (action === 'commander-card') return selectCommander(event.currentTarget.dataset.commander);
+    if (action === 'confirm-commander') return confirmCommanderPrompt();
+    if (action === 'close-commander-prompt') return closeCommanderPrompt();
     if (action === 'create-bot') return createBotGame();
     if (action === 'toggle-mobile-info') return toggleMobileInfo();
     if (action === 'close-mobile-info') return closeMobileInfo();
@@ -2098,9 +2407,45 @@
     render();
   }
 
+  function selectCommander(commander) {
+    selectedCommanderId = normalizeCommanderId(commander);
+    playUiSound('select');
+    render();
+  }
+
+  function openCommanderPrompt(action, payload) {
+    commanderPrompt = { action, payload };
+    playUiSound('select');
+    render();
+  }
+
+  function closeCommanderPrompt() {
+    if (!commanderPrompt) {
+      return;
+    }
+    commanderPrompt = null;
+    playUiSound('click');
+    render();
+  }
+
+  async function confirmCommanderPrompt() {
+    if (!commanderPrompt) {
+      return;
+    }
+    const prompt = commanderPrompt;
+    commanderPrompt = null;
+    playUiSound('ready');
+    if (prompt.action === 'create-bot') {
+      await executeCreateBotGame(prompt.payload);
+      return;
+    }
+    await executeCreateGame(prompt.payload);
+  }
+
   function showHomePage() {
     playUiSound('click');
     activePage = 'home';
+    commanderPrompt = null;
     render();
   }
 
@@ -2120,9 +2465,17 @@
     }
     playerNameDraft = name;
     writePlayerName(name);
+    if (selectedMode === 'arcade') {
+      openCommanderPrompt('create-bot', { name, mode: selectedMode });
+      return;
+    }
+    await executeCreateBotGame({ name, mode: selectedMode });
+  }
+
+  async function executeCreateBotGame(payload) {
     try {
-      const data = await api('/api/create-bot', { name, mode: selectedMode });
-      selectedMode = normalizeModeId(data.state && data.state.mode ? data.state.mode.id : selectedMode);
+      const data = await api('/api/create-bot', { name: payload.name, mode: payload.mode, commander: selectedCommanderId });
+      selectedMode = normalizeModeId(data.state && data.state.mode ? data.state.mode.id : payload.mode);
       storage.set({ backend: backendMode, code: data.code, playerId: data.playerId });
       state = data.state;
       activePage = 'home';
@@ -2216,6 +2569,10 @@
       return;
     }
     const cell = readCell(cellElement);
+    if (canConfirmPlacementPreview(cell)) {
+      confirmPlacementPreview();
+      return;
+    }
     const clickedShip = shipAt(placedShips, cell.x, cell.y);
     if (clickedShip) {
       selectPlacedShip(clickedShip, cell);
@@ -2470,9 +2827,26 @@
       return;
     }
     selectedAbility = ability;
+    targetPreviewCell = null;
     abilityPanelOpen = false;
     playUiSound('select');
     render();
+  }
+
+  function abilityLabel(ability) {
+    if (ability === 'sonar') return 'Sonar ping';
+    if (ability === 'barrage') return 'Barrage';
+    return 'Skott';
+  }
+
+  function sonarResultMessage(result) {
+    const count = Number(result && result.count);
+    if (!Number.isInteger(count)) {
+      return 'Sonar ping skickad.';
+    }
+    return count === 0
+      ? 'Sonar ping: inga kontakter.'
+      : `Sonar ping: ${count} ${count === 1 ? 'kontakt' : 'kontakter'}.`;
   }
 
   async function targetCell(cellElement) {
@@ -2481,6 +2855,23 @@
     }
     const cell = readCell(cellElement);
     const ability = hasArcadePowers() ? selectedAbility : 'shot';
+    if (ability !== 'shot' && abilityCharge(ability) > 0) {
+      const confirmed = sameCell(targetPreviewCell, cell);
+      const preview = targetAbilityPreviewFor(cell, ability);
+      targetPreviewCell = cell;
+      if (!preview.valid) {
+        playUiSound('error');
+        render();
+        showToast(preview.reason || `${abilityLabel(ability)} kan inte användas här.`);
+        return;
+      }
+      if (!confirmed) {
+        playUiSound('select');
+        render();
+        showToast(`Tryck igen för att använda ${abilityLabel(ability)}.`);
+        return;
+      }
+    }
     if (ability !== 'shot' && abilityCharge(ability) <= 0) {
       playUiSound('error');
       showToast(`${ability === 'sonar' ? 'Sonar' : 'Barrage'} är slut.`);
@@ -2488,7 +2879,7 @@
       render();
       return;
     }
-    if (ability === 'shot' && shotAt(state.target.outgoingShots, cell.x, cell.y)) {
+    if (ability === 'shot' && resolvedShotAt(state.target.outgoingShots, cell.x, cell.y)) {
       playUiSound('error');
       showToast('Den rutan är redan beskjuten.');
       return;
@@ -2503,12 +2894,16 @@
       });
       state = data.state;
       playActionSound(data.result, state);
+      if (data.result && data.result.ability === 'sonar') {
+        showToast(sonarResultMessage(data.result));
+      }
       if (state.status === 'finished') {
         await loadScores();
       }
       if (ability !== 'shot') {
         selectedAbility = 'shot';
       }
+      targetPreviewCell = null;
       abilityPanelOpen = false;
       render();
     } catch (error) {
