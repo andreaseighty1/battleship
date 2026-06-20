@@ -24,7 +24,7 @@
   const FLEET = CLASSIC_FLEET;
   const GAME_MODES = [
     { id: 'classic', label: 'Classic', tag: 'Standard' },
-    { id: 'arcade', label: 'Arcade', tag: 'Under byggnation' }
+    { id: 'arcade', label: 'Arcade', tag: 'Beta' }
   ];
   const COMMANDER_CARDS = [
     {
