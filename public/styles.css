@@ -683,15 +683,15 @@ input {
   white-space: nowrap;
 }
 
-.btn.commander-summary-action {
+.commander-summary-action {
   min-width: 116px;
   border-color: rgba(76, 225, 245, 0.54);
   color: #ffffff;
   background: rgba(0, 13, 24, 0.52);
 }
 
-.btn.commander-summary-action:hover,
-.btn.commander-summary-action:focus-visible {
+.commander-summary-action:hover,
+.commander-summary-action:focus-visible {
   border-color: rgba(117, 240, 255, 0.96);
   color: #ffffff;
   background: rgba(76, 225, 245, 0.14);
@@ -4498,4 +4498,16 @@ button.cell:not(:disabled):hover {
   .topbar.is-status-playing + .screen .target-board-panel .board-shell {
     max-width: var(--target-board-size);
   }
+}
+
+button.commander-summary-action {
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
+  text-shadow: 0 0 8px rgba(76, 225, 245, 0.46);
+}
+
+button.commander-summary-action:hover,
+button.commander-summary-action:focus-visible {
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
 }

@@ -1329,7 +1329,7 @@
           <span>${escapeHtml(selected.label)} · ${escapeHtml(selected.effect)}</span>
           <small>${escapeHtml(selected.quote)}</small>
         </span>
-        <button class="btn ghost commander-summary-action" data-action="open-commander-prompt" type="button">Välj kort</button>
+        <button class="commander-summary-action" data-action="open-commander-prompt" type="button">Välj kort</button>
       </div>
     `;
   }
