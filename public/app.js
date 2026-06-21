@@ -1296,7 +1296,7 @@
   }
 
   function renderCommanderSelector() {
-    if (selectedMode !== 'arcade') {
+    if (selectedMode !== 'arcade' && !commanderPrompt) {
       return '';
     }
     return `
@@ -1315,24 +1315,6 @@
     `;
   }
 
-  function renderCommanderSummary() {
-    if (selectedMode !== 'arcade') {
-      return '';
-    }
-    const selected = commanderDefinition(selectedCommanderId);
-    return `
-      <div class="commander-summary">
-        <img src="${escapeHtml(selected.image)}" alt="">
-        <span class="commander-summary-copy">
-          <strong>Vald taktik</strong>
-          <span>${escapeHtml(selected.label)} · ${escapeHtml(selected.effect)}</span>
-          <small>${escapeHtml(selected.quote)}</small>
-        </span>
-        <button class="commander-summary-action" data-action="open-commander-prompt" type="button">Välj kort</button>
-      </div>
-    `;
-  }
-
   function renderCommanderPrompt() {
     if (!commanderPrompt) {
       return '';
@@ -1342,7 +1324,9 @@
       ? 'Starta mot datorn'
       : commanderPrompt.action === 'create'
         ? 'Skapa lobby'
-        : 'Använd kort';
+        : commanderPrompt.action === 'join'
+          ? 'Gå med'
+          : 'Använd kort';
     return `
       <div class="commander-prompt-scrim" data-action="close-commander-prompt" aria-hidden="true"></div>
       <aside class="commander-prompt" role="dialog" aria-modal="true" aria-labelledby="commander-prompt-title">
@@ -1548,7 +1532,7 @@
       <div class="ability-scrim ${abilityPanelOpen ? 'is-open' : ''}" data-action="close-ability-panel" aria-hidden="true"></div>
       <aside class="ability-popover ${abilityPanelOpen ? 'is-open' : ''}" aria-label="Arcadeförmågor">
         <div class="ability-popover-header">
-          <strong>Arcade</strong>
+          <strong>Taktisk snabbpanel</strong>
           <button class="btn ghost side-close" data-action="close-ability-panel" type="button">Stäng</button>
         </div>
         ${renderPowerPanel('popover')}
@@ -2355,6 +2339,7 @@
     unlockAudio();
     const form = new FormData(event.currentTarget);
     const name = String(form.get('name') || playerNameDraft || '').trim();
+    const code = String(form.get('code') || '').trim();
     if (!name) {
       playUiSound('error');
       showToast('Skriv ett namn först.');
@@ -2363,7 +2348,22 @@
     playerNameDraft = name;
     writePlayerName(name);
     try {
-      const data = await api('/api/join', { name, code: form.get('code'), commander: selectedCommanderId });
+      const info = await api('/api/join-info', { code });
+      selectedMode = normalizeModeId(info.mode && info.mode.id ? info.mode.id : selectedMode);
+      if (info.requiresCommander) {
+        openCommanderPrompt('join', { name, code: info.code || code });
+        return;
+      }
+      await executeJoinGame({ name, code: info.code || code });
+    } catch (error) {
+      playUiSound('error');
+      showToast(error.message);
+    }
+  }
+
+  async function executeJoinGame(payload) {
+    try {
+      const data = await api('/api/join', { name: payload.name, code: payload.code, commander: selectedCommanderId });
       storage.set({ backend: backendMode, code: data.code, playerId: data.playerId });
       state = data.state;
       activePage = 'home';
@@ -2394,7 +2394,6 @@
     if (action === 'score-mode') return selectScoreMode(event.currentTarget.dataset.scoreMode);
     if (action === 'score-category') return selectScoreCategory(event.currentTarget.dataset.scoreCategory);
     if (action === 'commander-card') return selectCommander(event.currentTarget.dataset.commander);
-    if (action === 'open-commander-prompt') return openCommanderPrompt('select-only', null);
     if (action === 'confirm-commander') return confirmCommanderPrompt();
     if (action === 'close-commander-prompt') return closeCommanderPrompt();
     if (action === 'create-bot') return createBotGame();
@@ -2463,12 +2462,12 @@
     const prompt = commanderPrompt;
     commanderPrompt = null;
     playUiSound('ready');
-    if (prompt.action === 'select-only') {
-      render();
-      return;
-    }
     if (prompt.action === 'create-bot') {
       await executeCreateBotGame(prompt.payload);
+      return;
+    }
+    if (prompt.action === 'join') {
+      await executeJoinGame(prompt.payload);
       return;
     }
     await executeCreateGame(prompt.payload);

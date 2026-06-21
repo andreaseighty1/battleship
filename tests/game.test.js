@@ -12,6 +12,7 @@ const {
   abandonGame,
   createBotGame,
   createGame,
+  getJoinInfo,
   getHighScores,
   joinGame,
   performAction,
@@ -171,6 +172,22 @@ test('classic mode passes turn after hits and blocks powers', () => {
   const hostState = serializeGame(host.game, host.playerId);
   assert.equal(hostState.turn.isYou, false);
   assert.equal(hostState.own.energy, 0);
+});
+
+test('join info tells guests when arcade needs a commander card', () => {
+  const store = new Map();
+  const classic = createGame('Ada', store, 'classic');
+  const arcade = createGame('Lin', store, 'arcade', 'scout');
+
+  const classicInfo = getJoinInfo(classic.code, store);
+  const arcadeInfo = getJoinInfo(arcade.code, store);
+
+  assert.equal(classicInfo.mode.id, 'classic');
+  assert.equal(classicInfo.requiresCommander, false);
+  assert.equal(classicInfo.players, 1);
+  assert.equal(arcadeInfo.mode.id, 'arcade');
+  assert.equal(arcadeInfo.requiresCommander, true);
+  assert.equal(arcadeInfo.players, 1);
 });
 
 test('classic bot game auto-places and fires back', () => {

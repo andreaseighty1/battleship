@@ -579,8 +579,7 @@ function getOpponent(game, playerId) {
   return game.players.find((entry) => entry.id !== playerId) || null;
 }
 
-function joinGame(codeInput, playerName, store = games, commander = DEFAULT_COMMANDER) {
-  const game = getGame(codeInput, store);
+function assertJoinable(game) {
   if (game.players.length >= 2) {
     fail(409, 'Rummet är fullt.');
   }
@@ -590,6 +589,23 @@ function joinGame(codeInput, playerName, store = games, commander = DEFAULT_COMM
   if (game.status !== 'waiting') {
     fail(409, 'Rummet har redan startat.');
   }
+}
+
+function getJoinInfo(codeInput, store = games) {
+  const game = getGame(codeInput, store);
+  assertJoinable(game);
+  return {
+    code: game.code,
+    mode: publicMode(game),
+    requiresCommander: modeSettings(game).abilities,
+    players: game.players.length,
+    maxPlayers: 2
+  };
+}
+
+function joinGame(codeInput, playerName, store = games, commander = DEFAULT_COMMANDER) {
+  const game = getGame(codeInput, store);
+  assertJoinable(game);
 
   const player = createPlayer(playerName, 1, commander, game);
   game.players.push(player);
@@ -1368,6 +1384,11 @@ async function handleApi(req, res, url) {
       return;
     }
 
+    if (parts[1] === 'join-info') {
+      sendJson(res, 200, getJoinInfo(body.code, games));
+      return;
+    }
+
     if (parts[1] === 'join') {
       const { game, code, playerId } = joinGame(body.code, body.name, games, body.commander);
       broadcast(game);
@@ -1499,6 +1520,7 @@ module.exports = {
   createBotGame,
   createGame,
   fleetForMode,
+  getJoinInfo,
   joinGame,
   getHighScores,
   performAction,

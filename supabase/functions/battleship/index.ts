@@ -717,11 +717,27 @@ function getOpponent(game: any, playerId: unknown): any | null {
   return game.players.find((entry: any) => entry.id !== playerId) || null;
 }
 
-async function joinGame(codeInput: unknown, playerName: unknown, commander: unknown = DEFAULT_COMMANDER): Promise<{ game: any; code: string; playerId: string }> {
-  const game = await loadGame(codeInput);
+function assertJoinable(game: any): void {
   if (game.players.length >= 2) fail(409, 'Room is full.');
   if (game.status === 'expired') fail(410, 'Rummet har gått ut.');
   if (game.status !== 'waiting') fail(409, 'Room has already started.');
+}
+
+async function getJoinInfo(codeInput: unknown): Promise<any> {
+  const game = await loadGame(codeInput);
+  assertJoinable(game);
+  return {
+    code: game.code,
+    mode: publicMode(game),
+    requiresCommander: modeSettings(game).abilities,
+    players: game.players.length,
+    maxPlayers: 2
+  };
+}
+
+async function joinGame(codeInput: unknown, playerName: unknown, commander: unknown = DEFAULT_COMMANDER): Promise<{ game: any; code: string; playerId: string }> {
+  const game = await loadGame(codeInput);
+  assertJoinable(game);
 
   const player = createPlayer(playerName, 1, commander, game);
   game.players.push(player);
@@ -1309,6 +1325,10 @@ Deno.serve(async (req) => {
     if (parts[0] === 'create-bot') {
       const { game, code, playerId } = await createBotGame(body.name, body.mode, body.commander);
       return json(201, { code, playerId, state: serializeGame(game, playerId) });
+    }
+
+    if (parts[0] === 'join-info') {
+      return json(200, await getJoinInfo(body.code));
     }
 
     if (parts[0] === 'join') {
