@@ -1691,6 +1691,7 @@ input {
 .mobile-info-toggle,
 .mobile-info-scrim,
 .mobile-end-actions,
+.mobile-top-actions,
 .side-close,
 .side-panel-header,
 .mobile-side-actions {
@@ -3317,6 +3318,63 @@ button.cell:not(:disabled):hover {
     gap: 12px;
   }
 
+  .own-board-title {
+    align-items: center;
+  }
+
+  .own-board-actions {
+    margin-left: auto;
+    gap: 4px;
+  }
+
+  .mobile-top-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .mobile-ability-button,
+  .mobile-options-button {
+    min-height: 28px;
+    border-color: rgba(117, 240, 255, 0.52);
+    color: #ffffff;
+    background: rgba(0, 13, 24, 0.56);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18), 0 0 12px rgba(76, 225, 245, 0.14);
+    backdrop-filter: blur(4px);
+  }
+
+  .mobile-ability-button {
+    min-width: 74px;
+    padding: 0 8px;
+    font-size: 0.62rem;
+  }
+
+  .mobile-ability-button.is-active,
+  .mobile-ability-button:hover {
+    border-color: rgba(117, 240, 255, 0.96);
+    box-shadow: 0 0 16px rgba(76, 225, 245, 0.26);
+  }
+
+  .mobile-options-button {
+    width: 30px;
+    min-width: 30px;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .mobile-options-button span {
+    width: 15px;
+    height: 2px;
+    border-radius: 999px;
+    background: #ffffff;
+    box-shadow: 0 -5px 0 #ffffff, 0 5px 0 #ffffff;
+  }
+
+  .target-board-panel .board-title-actions .ability-toggle,
+  .target-board-panel .board-title-actions .mobile-info-toggle {
+    display: none;
+  }
+
   .mobile-info-toggle {
     display: inline-flex;
     position: fixed;
@@ -3484,6 +3542,10 @@ button.cell:not(:disabled):hover {
     order: 2;
     position: static;
     bottom: auto;
+  }
+
+  .placement-controls-panel .commander-loadout.is-placement {
+    display: none;
   }
 
   .join-grid {
@@ -3956,6 +4018,17 @@ button.cell:not(:disabled):hover {
 
   .board-mode-chip {
     display: none;
+  }
+
+  .mobile-ability-button {
+    min-width: 66px;
+    padding: 0 6px;
+    font-size: 0.58rem;
+  }
+
+  .mobile-options-button {
+    width: 30px;
+    min-width: 30px;
   }
 
   .mobile-info-toggle {

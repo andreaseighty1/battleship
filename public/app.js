@@ -1122,7 +1122,6 @@
           <div class="home-launch-controls">
             <input class="home-name-input" name="name" maxlength="24" placeholder="Ditt namn" autocomplete="nickname" value="${escapeHtml(playerNameDraft)}">
             ${renderModeSelector()}
-            ${renderCommanderSummary()}
             ${renderModeNotice()}
           </div>
           <div class="home-menu-grid">
@@ -1366,8 +1365,8 @@
   function renderModeNotice() {
     return `
       <div class="mode-notice" role="note">
-        <strong>${selectedMode === 'arcade' ? 'Arcade: välj taktik.' : 'Classic är standard.'}</strong>
-        <span>${selectedMode === 'arcade' ? 'Commander Cards ger olika förmågor innan matchen startar.' : 'Arcade bygger vidare med Commander Cards och specialförmågor.'}</span>
+        <strong>${selectedMode === 'arcade' ? 'Arcade Beta.' : 'Classic är standard.'}</strong>
+        <span>${selectedMode === 'arcade' ? 'Välj Commander Card när matchen startas.' : 'Arcade bygger vidare med Commander Cards och specialförmågor.'}</span>
       </div>
     `;
   }
@@ -1479,9 +1478,15 @@
     return `
       <section class="game-grid">
         <div class="panel board-wrap own-board-panel">
-          <div class="board-title">
+          <div class="board-title own-board-title">
             <h2>Din flotta</h2>
-            ${hasArcadePowers() ? `<span class="chip board-ability-chip">${escapeHtml(abilitySummary())}</span>` : `<span class="chip board-mode-chip">${escapeHtml(modeLabel(state.mode))}</span>`}
+            <div class="board-title-actions own-board-actions">
+              ${hasArcadePowers() ? `<span class="chip board-ability-chip">${escapeHtml(abilitySummary())}</span>` : `<span class="chip board-mode-chip">${escapeHtml(modeLabel(state.mode))}</span>`}
+              <div class="mobile-top-actions">
+                ${hasArcadePowers() && state.status === 'playing' ? `<button class="btn ghost mobile-ability-button ${abilityPanelOpen ? 'is-active' : ''}" data-action="toggle-ability-panel" type="button" aria-label="Förmågor" aria-expanded="${abilityPanelOpen ? 'true' : 'false'}">Förmågor</button>` : ''}
+                <button class="btn ghost mobile-options-button" data-action="toggle-mobile-info" type="button" aria-label="Alternativ" aria-expanded="${mobileInfoOpen ? 'true' : 'false'}"><span aria-hidden="true"></span></button>
+              </div>
+            </div>
           </div>
           ${renderBoard('own')}
           ${renderFleetRadar()}
