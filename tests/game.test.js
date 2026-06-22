@@ -104,7 +104,7 @@ test('expires waiting lobbies after five minutes', () => {
   );
 });
 
-test('hit keeps turn and miss passes it', () => {
+test('arcade shots pass turn after hits and misses', () => {
   const store = new Map();
   const host = createGame('Ada', store, 'arcade');
   const guest = joinGame(host.code, 'Bo', store);
@@ -112,10 +112,13 @@ test('hit keeps turn and miss passes it', () => {
   placeFleet(host.code, guest.playerId, arcadeFleetFromRows(5), store);
 
   performAction(host.code, host.playerId, { ability: 'shot', x: 0, y: 5 }, store);
+  assert.equal(serializeGame(host.game, host.playerId).turn.isYou, false);
+
+  performAction(host.code, guest.playerId, { ability: 'shot', x: 9, y: 9 }, store);
   assert.equal(serializeGame(host.game, host.playerId).turn.isYou, true);
 
   host.game.turnStartedAt = 1000;
-  performAction(host.code, host.playerId, { ability: 'shot', x: 9, y: 9 }, store);
+  performAction(host.code, host.playerId, { ability: 'shot', x: 9, y: 8 }, store);
   assert.equal(serializeGame(host.game, host.playerId).turn.isYou, false);
   assert.ok(host.game.turnStartedAt > 1000);
 });
@@ -129,9 +132,12 @@ test('marks all hit cells when a ship is sunk', () => {
   placeFleet(host.code, guest.playerId, guestFleet, store);
 
   const destroyer = guestFleet.find((ship) => ship.id === 'destroyer');
-  for (const cell of destroyer.cells) {
+  destroyer.cells.forEach((cell, index) => {
     performAction(host.code, host.playerId, { ability: 'shot', x: cell.x, y: cell.y }, store);
-  }
+    if (index < destroyer.cells.length - 1) {
+      performAction(host.code, guest.playerId, { ability: 'shot', x: 9 - index, y: 9 }, store);
+    }
+  });
 
   const hostState = serializeGame(host.game, host.playerId);
   const sunkHits = hostState.target.outgoingShots.filter((shot) => shot.sunkShipId === destroyer.id);
@@ -406,9 +412,12 @@ test('complete game can be won and records a fast-win score', () => {
   performAction(host.code, host.playerId, { ability: 'shot', x: 9, y: 9 }, store);
   performAction(host.code, guest.playerId, { ability: 'shot', x: 9, y: 9 }, store);
 
-  for (const cell of allGuestShipCells) {
+  allGuestShipCells.forEach((cell, index) => {
     performAction(host.code, host.playerId, { ability: 'shot', x: cell.x, y: cell.y }, store);
-  }
+    if (index < allGuestShipCells.length - 1) {
+      performAction(host.code, guest.playerId, { ability: 'shot', x: 9 - (index % 10), y: index < 10 ? 8 : 7 }, store);
+    }
+  });
 
   const hostState = serializeGame(host.game, host.playerId);
   assert.equal(hostState.status, 'finished');

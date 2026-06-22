@@ -817,7 +817,7 @@
   }
 
   function currentMode() {
-    return state && state.mode ? state.mode : { id: 'arcade', label: 'Arcade', abilities: true, hitKeepsTurn: true };
+    return state && state.mode ? state.mode : { id: 'arcade', label: 'Arcade', abilities: true, hitKeepsTurn: false };
   }
 
   function hasArcadePowers() {

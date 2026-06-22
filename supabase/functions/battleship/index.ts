@@ -27,7 +27,7 @@ const GAME_MODES = Object.freeze({
     id: 'arcade',
     label: 'Arcade',
     abilities: true,
-    hitKeepsTurn: true,
+    hitKeepsTurn: false,
     startingEnergy: 2
   })
 });
