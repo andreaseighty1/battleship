@@ -385,10 +385,12 @@ function publicScore(score) {
   const shots = Number(score.shots || 0);
   const hits = Number(score.hits ?? shots);
   const misses = Number(score.misses ?? Math.max(0, shots - hits));
+  const opponentType = isBotScore(score) ? 'computer' : 'player';
   return {
     code: score.code,
     winnerName: score.winnerName,
     opponentName: score.opponentName,
+    opponentType,
     mode: normalizeMode(score.mode),
     durationMs: score.durationMs,
     shots,
@@ -426,8 +428,13 @@ function isBotScore(score) {
   return ['datorn', 'ai', 'computer'].includes(opponent) || ['datorn', 'ai', 'computer'].includes(winner);
 }
 
+function isBotWinnerScore(score) {
+  const winner = String(score && score.winnerName || '').trim().toLowerCase();
+  return ['datorn', 'ai', 'computer'].includes(winner);
+}
+
 function getHighScores(limit = SCORE_FETCH_LIMIT) {
-  return highScores.filter((score) => !isHiddenScore(score) && !isBotScore(score)).slice(0, limit).map(publicScore);
+  return highScores.filter((score) => !isHiddenScore(score) && !isBotWinnerScore(score)).slice(0, limit).map(publicScore);
 }
 
 function shotStatsFor(game, playerId) {
@@ -446,7 +453,7 @@ function recordHighScore(game, winner) {
   if (game.score) {
     return game.score;
   }
-  if (game.players.some(isBotPlayer)) {
+  if (isBotPlayer(winner)) {
     game.finishedAt = game.finishedAt || Date.now();
     return null;
   }

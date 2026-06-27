@@ -113,6 +113,10 @@
     { id: 'accuracy', label: 'Träffsäkerhet' },
     { id: 'misses', label: 'Minst missar' }
   ];
+  const SCORE_SCOPES = [
+    { id: 'players', label: 'Mot spelare' },
+    { id: 'computer', label: 'Mot datorn' }
+  ];
   const COPYRIGHT_NOTICE = '© 2026 Andreas Jonsson & 42 Improbable Owls';
 
   const app = document.querySelector('#app');
@@ -143,6 +147,7 @@
   let abilityPanelOpen = false;
   let selectedScoreMode = 'classic';
   let selectedScoreCategory = 'fastest';
+  let selectedScoreScope = 'players';
   let playerNameDraft = readPlayerName();
   let toastTimer = null;
   let scores = [];
@@ -560,16 +565,22 @@
   async function loadScores() {
     try {
       const data = await fetchScores();
-      scores = Array.isArray(data.scores) ? data.scores.filter((score) => !isHiddenScore(score) && !isBotScore(score)) : [];
+      scores = Array.isArray(data.scores) ? data.scores.filter((score) => !isHiddenScore(score) && !isBotWinnerScore(score)) : [];
     } catch {
       scores = [];
     }
   }
 
+  function isBotName(name) {
+    return ['datorn', 'ai', 'computer'].includes(String(name || '').trim().toLowerCase());
+  }
+
   function isBotScore(score) {
-    const opponent = String(score && score.opponentName || '').trim().toLowerCase();
-    const winner = String(score && score.winnerName || '').trim().toLowerCase();
-    return ['datorn', 'ai', 'computer'].includes(opponent) || ['datorn', 'ai', 'computer'].includes(winner);
+    return score && (score.opponentType === 'computer' || isBotName(score.opponentName) || isBotName(score.winnerName));
+  }
+
+  function isBotWinnerScore(score) {
+    return score && isBotName(score.winnerName);
   }
 
   function isHiddenScore(score) {
@@ -585,6 +596,11 @@
   function scoreCategoryLabel(category = selectedScoreCategory) {
     const found = SCORE_CATEGORIES.find((entry) => entry.id === category);
     return found ? found.label : SCORE_CATEGORIES[0].label;
+  }
+
+  function scoreScopeLabel(scope = selectedScoreScope) {
+    const found = SCORE_SCOPES.find((entry) => entry.id === scope);
+    return found ? found.label : SCORE_SCOPES[0].label;
   }
 
   function compareScoreRows(category) {
@@ -607,9 +623,10 @@
     };
   }
 
-  function scoresFor(mode = selectedScoreMode, category = selectedScoreCategory) {
+  function scoresFor(mode = selectedScoreMode, category = selectedScoreCategory, scope = selectedScoreScope) {
     return scores
       .filter((score) => normalizeModeId(score.mode) === normalizeModeId(mode))
+      .filter((score) => scope === 'computer' ? isBotScore(score) : !isBotScore(score))
       .slice()
       .sort(compareScoreRows(category));
   }
@@ -1254,7 +1271,7 @@
           <div class="scores-header">
             <div>
               <h2>Topplista</h2>
-              <span>${visibleScores.length ? `${Math.min(visibleScores.length, SCORE_PAGE_LIMIT)} ${scoreCategoryLabel().toLowerCase()} - ${modeLabel(selectedScoreMode)}` : `Inga ${modeLabel(selectedScoreMode)}-matcher ännu`}</span>
+              <span>${visibleScores.length ? `${Math.min(visibleScores.length, SCORE_PAGE_LIMIT)} ${scoreCategoryLabel().toLowerCase()} - ${modeLabel(selectedScoreMode)} - ${scoreScopeLabel()}` : `Inga ${modeLabel(selectedScoreMode)}-matcher ${scoreScopeLabel().toLowerCase()} ännu`}</span>
             </div>
           </div>
           ${renderScoreFilters()}
@@ -1275,6 +1292,11 @@
         <div class="score-filter-group" role="group" aria-label="Kategori">
           ${SCORE_CATEGORIES.map((category) => `
             <button class="btn ghost score-filter ${selectedScoreCategory === category.id ? 'is-active' : ''}" data-action="score-category" data-score-category="${escapeHtml(category.id)}" type="button">${escapeHtml(category.label)}</button>
+          `).join('')}
+        </div>
+        <div class="score-filter-group" role="group" aria-label="Motståndare">
+          ${SCORE_SCOPES.map((scope) => `
+            <button class="btn ghost score-filter ${selectedScoreScope === scope.id ? 'is-active' : ''}" data-action="score-scope" data-score-scope="${escapeHtml(scope.id)}" type="button">${escapeHtml(scope.label)}</button>
           `).join('')}
         </div>
       </div>
@@ -1702,6 +1724,7 @@
     return `
       <div class="score-meta">
         <span>${escapeHtml(scoreCategoryLabel())}</span>
+        <span>${escapeHtml(scoreScopeLabel(isBotScore(score) ? 'computer' : 'players'))}</span>
         <span>${escapeHtml(modeLabel(score.mode))}</span>
         <span>${escapeHtml(formatDuration(score.durationMs))}</span>
         <span>${escapeHtml(score.hits)}/${escapeHtml(score.shots)} träff</span>
@@ -2393,6 +2416,7 @@
     if (action === 'refresh-scores') return refreshScoresPage();
     if (action === 'score-mode') return selectScoreMode(event.currentTarget.dataset.scoreMode);
     if (action === 'score-category') return selectScoreCategory(event.currentTarget.dataset.scoreCategory);
+    if (action === 'score-scope') return selectScoreScope(event.currentTarget.dataset.scoreScope);
     if (action === 'commander-card') return selectCommander(event.currentTarget.dataset.commander);
     if (action === 'confirm-commander') return confirmCommanderPrompt();
     if (action === 'close-commander-prompt') return closeCommanderPrompt();
@@ -2430,6 +2454,12 @@
 
   function selectScoreCategory(category) {
     selectedScoreCategory = SCORE_CATEGORIES.some((entry) => entry.id === category) ? category : SCORE_CATEGORIES[0].id;
+    playUiSound('select');
+    render();
+  }
+
+  function selectScoreScope(scope) {
+    selectedScoreScope = SCORE_SCOPES.some((entry) => entry.id === scope) ? scope : SCORE_SCOPES[0].id;
     playUiSound('select');
     render();
   }

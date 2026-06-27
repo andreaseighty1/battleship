@@ -445,10 +445,12 @@ function publicScore(score: any): any {
   const shots = Number(score.shots || 0);
   const hits = Number(score.hits ?? shots);
   const misses = Number(score.misses ?? Math.max(0, shots - hits));
+  const opponentType = isBotScore(score) ? 'computer' : 'player';
   return {
     code: score.code,
     winnerName: score.winnerName,
     opponentName: score.opponentName,
+    opponentType,
     mode: normalizeMode(score.mode),
     durationMs: score.durationMs,
     shots,
@@ -473,6 +475,11 @@ function isBotScore(score: any): boolean {
   const opponent = String(score?.opponentName || '').trim().toLowerCase();
   const winner = String(score?.winnerName || '').trim().toLowerCase();
   return ['datorn', 'ai', 'computer'].includes(opponent) || ['datorn', 'ai', 'computer'].includes(winner);
+}
+
+function isBotWinnerScore(score: any): boolean {
+  const winner = String(score?.winnerName || '').trim().toLowerCase();
+  return ['datorn', 'ai', 'computer'].includes(winner);
 }
 
 async function getHighScores(): Promise<any[]> {
@@ -507,7 +514,7 @@ async function getHighScores(): Promise<any[]> {
       misses: score.misses,
       finishedAt: new Date(score.finished_at).getTime()
     }))
-    .filter((score: any) => !isHiddenScore(score) && !isBotScore(score))
+    .filter((score: any) => !isHiddenScore(score) && !isBotWinnerScore(score))
     .slice(0, SCORE_FETCH_LIMIT)
     .map(publicScore);
 }
@@ -526,7 +533,7 @@ function shotStatsFor(game: any, playerId: string): any {
 
 async function recordHighScore(game: any, winner: any): Promise<any> {
   if (game.score) return game.score;
-  if (game.players.some(isBotPlayer)) {
+  if (isBotPlayer(winner)) {
     game.finishedAt = game.finishedAt || Date.now();
     return null;
   }

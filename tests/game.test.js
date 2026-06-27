@@ -298,7 +298,7 @@ test('arcade bot uses barrage to follow up a known hit', () => {
   assert.equal(serializeGame(host.game, host.playerId).turn.isYou, true);
 });
 
-test('bot games do not record highscores', () => {
+test('wins against the bot record computer highscores', () => {
   const store = new Map();
   const host = createBotGame('Ada', store);
   const hostFleet = fleetFromRows(0);
@@ -315,6 +315,31 @@ test('bot games do not record highscores', () => {
   const hostState = serializeGame(host.game, host.playerId);
   assert.equal(hostState.status, 'finished');
   assert.equal(hostState.winner.isYou, true);
+  assert.equal(hostState.score.winnerName, 'Ada');
+  assert.equal(hostState.score.opponentName, 'Datorn');
+  assert.equal(hostState.score.opponentType, 'computer');
+  assert.equal(getHighScores().some((score) => score.code === host.code && score.opponentType === 'computer'), true);
+});
+
+test('bot wins do not record highscores', () => {
+  const store = new Map();
+  const host = createBotGame('Ada', store);
+  const hostFleet = fleetFromRows(0);
+  const bot = host.game.players.find((player) => player.isBot);
+
+  placeFleet(host.code, host.playerId, hostFleet, store);
+
+  for (const cell of hostFleet.flatMap((ship) => ship.cells)) {
+    host.game.turnPlayerId = bot.id;
+    performAction(host.code, bot.id, { ability: 'shot', x: cell.x, y: cell.y }, store);
+    if (host.game.status === 'finished') {
+      break;
+    }
+  }
+
+  const hostState = serializeGame(host.game, host.playerId);
+  assert.equal(hostState.status, 'finished');
+  assert.equal(hostState.winner.isYou, false);
   assert.equal(hostState.score, null);
   assert.equal(getHighScores().some((score) => score.code === host.code), false);
 });
