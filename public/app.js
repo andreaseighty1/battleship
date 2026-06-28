@@ -1020,7 +1020,11 @@
   }
 
   function statusLabel() {
-    if (!state) return activePage === 'scores' ? 'Topplista' : 'Meny';
+    if (!state) {
+      if (activePage === 'scores') return 'Topplista';
+      if (activePage === 'rules') return 'Regler';
+      return 'Meny';
+    }
     if (state.status === 'waiting') return 'Väntar';
     if (state.status === 'placing') return 'Placering';
     if (state.status === 'playing') return state.turn && state.turn.isYou ? 'Din tur' : 'Motståndarens tur';
@@ -1083,7 +1087,7 @@
   }
 
   function renderTopbar() {
-    if ((!state && (activePage === 'home' || activePage === 'scores')) || (state && state.status === 'placing')) {
+    if ((!state && (activePage === 'home' || activePage === 'scores' || activePage === 'rules')) || (state && state.status === 'placing')) {
       return '';
     }
     const homeTopbarClass = !state && activePage === 'home' ? 'is-home-topbar' : '';
@@ -1116,7 +1120,9 @@
 
   function renderScreen() {
     if (!state) {
-      return activePage === 'scores' ? renderScoresPage() : renderHome();
+      if (activePage === 'scores') return renderScoresPage();
+      if (activePage === 'rules') return renderRulesPage();
+      return renderHome();
     }
     if (state.status === 'waiting') {
       return renderWaiting();
@@ -1165,6 +1171,11 @@
               <strong>Topplista</strong>
               <span>${scores.length ? `${scores.length} matcher` : 'Visa rekord'}</span>
             </button>
+            <button class="menu-card" data-action="show-rules" type="button">
+              <span class="menu-icon icon-rules" aria-hidden="true"></span>
+              <strong>Regler</strong>
+              <span>Classic & Arcade</span>
+            </button>
             <button class="menu-card" data-action="toggle-audio" type="button" aria-pressed="${audioEnabled ? 'true' : 'false'}">
               ${renderSoundIcon(audioEnabled)}
               <strong>${audioEnabled ? 'Ljud på' : 'Ljud av'}</strong>
@@ -1198,6 +1209,21 @@
           <div class="banner-actions">
             <span class="chip status-chip">Topplista</span>
             <button class="btn ghost" data-action="refresh-scores" type="button">Uppdatera</button>
+            <button class="btn primary" data-action="show-home" type="button">Meny</button>
+            <button class="btn ghost audio-toggle" data-action="toggle-audio" type="button" aria-pressed="${audioEnabled ? 'true' : 'false'}">${audioEnabled ? 'Ljud på' : 'Ljud av'}</button>
+          </div>
+        </div>
+      `;
+    }
+    if (kind === 'rules') {
+      return `
+        <div class="title-banner-hud">
+          <div class="banner-hud-label">
+            <strong>Regler</strong>
+            <span>Classic & Arcade</span>
+          </div>
+          <div class="banner-actions">
+            <span class="chip status-chip">Regler</span>
             <button class="btn primary" data-action="show-home" type="button">Meny</button>
             <button class="btn ghost audio-toggle" data-action="toggle-audio" type="button" aria-pressed="${audioEnabled ? 'true' : 'false'}">${audioEnabled ? 'Ljud på' : 'Ljud av'}</button>
           </div>
@@ -1300,6 +1326,75 @@
           `).join('')}
         </div>
       </div>
+    `;
+  }
+
+  function renderRulesPage() {
+    return `
+      <section class="rules-page themed-screen">
+        ${renderTitleBanner('compact-banner-card', renderBannerHud('rules'))}
+        <div class="home-console page-console rules-panel">
+          <div class="scores-header">
+            <div>
+              <h2>Regler</h2>
+              <span>Snabb överblick för Classic och Arcade.</span>
+            </div>
+          </div>
+          <div class="rules-grid">
+            <article class="rules-card">
+              <h3>Classic</h3>
+              <ul>
+                <li>Placera hela flottan: 5 skepp, raka linjer, inga överlapp.</li>
+                <li>Spelarna turas om att skjuta en ruta på motståndarens plan.</li>
+                <li>Träff eller miss spelar ingen roll för turen: efter skottet går turen över.</li>
+                <li>Först att sänka alla motståndarens skepp vinner matchen.</li>
+              </ul>
+            </article>
+            <article class="rules-card">
+              <h3>Arcade</h3>
+              <ul>
+                <li>Samma grundregler som Classic, men flottan har även en Drönare på 1 ruta.</li>
+                <li>Varje spelare väljer ett Commander Card innan placering.</li>
+                <li>Förmågor har begränsade laddningar och använder din tur.</li>
+                <li>Vanliga skott byter tur efter både träff och miss, precis som Classic.</li>
+              </ul>
+            </article>
+            <article class="rules-card is-wide">
+              <h3>Förmågor & Commander Cards</h3>
+              <div class="rules-mini-grid">
+                <div>
+                  <strong>Sonar</strong>
+                  <span>Scannar en 4x4-zon och visar hur många skeppsrutor som finns där.</span>
+                </div>
+                <div>
+                  <strong>Barrage</strong>
+                  <span>Skjuter ett korsmönster runt vald ruta.</span>
+                </div>
+                <div>
+                  <strong>Offensiv</strong>
+                  <span>Startar med +1 Barrage.</span>
+                </div>
+                <div>
+                  <strong>Scout</strong>
+                  <span>Startar med +1 Sonar ping.</span>
+                </div>
+                <div>
+                  <strong>Defensiv</strong>
+                  <span>Blockerar första träffen på din flotta.</span>
+                </div>
+              </div>
+            </article>
+            <article class="rules-card is-wide">
+              <h3>Topplista</h3>
+              <ul>
+                <li>Matcher mot spelare och matcher mot Datorn har separata listor.</li>
+                <li>Du kan sortera på snabbast, träffsäkerhet eller minst missar.</li>
+                <li>AI-vinster sparas inte som highscore, bara dina vinster mot Datorn.</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
     `;
   }
 
@@ -2412,6 +2507,7 @@
       return leaveGame();
     }
     if (action === 'show-scores') return showScoresPage();
+    if (action === 'show-rules') return showRulesPage();
     if (action === 'show-home') return showHomePage();
     if (action === 'refresh-scores') return refreshScoresPage();
     if (action === 'score-mode') return selectScoreMode(event.currentTarget.dataset.scoreMode);
@@ -2443,6 +2539,12 @@
     playUiSound('click');
     activePage = 'scores';
     await loadScores();
+    render();
+  }
+
+  function showRulesPage() {
+    playUiSound('click');
+    activePage = 'rules';
     render();
   }
 
