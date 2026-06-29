@@ -437,6 +437,33 @@ function getHighScores(limit = SCORE_FETCH_LIMIT) {
   return highScores.filter((score) => !isHiddenScore(score) && !isBotWinnerScore(score)).slice(0, limit).map(publicScore);
 }
 
+function countFinishedMatches(startMs, endMs, store = games) {
+  const start = Number(startMs);
+  const end = Number(endMs);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    return 0;
+  }
+  let count = 0;
+  for (const game of store.values()) {
+    const finishedAt = Number(game && game.finishedAt || 0);
+    if (game && game.status === 'finished' && finishedAt >= start && finishedAt < end) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function readMatchCountRange(url) {
+  const start = Number(url.searchParams.get('todayStart'));
+  const end = Number(url.searchParams.get('todayEnd'));
+  if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+    return { start, end };
+  }
+  const now = new Date();
+  const fallbackStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return { start: fallbackStart, end: fallbackStart + 24 * 60 * 60 * 1000 };
+}
+
 function shotStatsFor(game, playerId) {
   const shots = game.shotsByPlayer[playerId] || [];
   const hits = shots.filter((shot) => shot.result === 'hit').length;
@@ -1369,7 +1396,8 @@ async function handleApi(req, res, url) {
     }
 
     if (req.method === 'GET' && parts[0] === 'api' && parts[1] === 'scores') {
-      sendJson(res, 200, { scores: getHighScores() });
+      const range = readMatchCountRange(url);
+      sendJson(res, 200, { scores: getHighScores(), matchesToday: countFinishedMatches(range.start, range.end, games) });
       return;
     }
 
@@ -1527,6 +1555,7 @@ module.exports = {
   createBotGame,
   createGame,
   fleetForMode,
+  countFinishedMatches,
   getJoinInfo,
   joinGame,
   getHighScores,

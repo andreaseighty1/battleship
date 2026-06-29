@@ -519,6 +519,47 @@ async function getHighScores(): Promise<any[]> {
     .map(publicScore);
 }
 
+function readMatchCountRange(url: URL): { start: number; end: number } {
+  const start = Number(url.searchParams.get('todayStart'));
+  const end = Number(url.searchParams.get('todayEnd'));
+  if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+    return { start, end };
+  }
+  const now = new Date();
+  const fallbackStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return { start: fallbackStart, end: fallbackStart + 24 * 60 * 60 * 1000 };
+}
+
+function isFinishedInRange(game: any, start: number, end: number): boolean {
+  const finishedAt = Number(game?.finishedAt || 0);
+  return game?.status === 'finished' && finishedAt >= start && finishedAt < end;
+}
+
+async function countFinishedMatches(start: number, end: number): Promise<number> {
+  const startIso = new Date(start).toISOString();
+  const endIso = new Date(end).toISOString();
+  let from = 0;
+  const pageSize = 1000;
+  let count = 0;
+
+  while (true) {
+    const { data, error } = await admin!
+      .from('battleship_games')
+      .select('data')
+      .gte('updated_at', startIso)
+      .lt('updated_at', endIso)
+      .order('updated_at', { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) fail(500, error.message);
+    const rows = data || [];
+    count += rows.filter((row: any) => isFinishedInRange(row.data, start, end)).length;
+    if (rows.length < pageSize) {
+      return count;
+    }
+    from += pageSize;
+  }
+}
+
 function shotStatsFor(game: any, playerId: string): any {
   const shots = game.shotsByPlayer[playerId] || [];
   const hits = shots.filter((shot: any) => shot.result === 'hit').length;
@@ -1318,7 +1359,8 @@ Deno.serve(async (req) => {
     }
 
     if (req.method === 'GET' && parts[0] === 'scores') {
-      return json(200, { scores: await getHighScores() });
+      const range = readMatchCountRange(url);
+      return json(200, { scores: await getHighScores(), matchesToday: await countFinishedMatches(range.start, range.end) });
     }
 
     if (req.method !== 'POST') fail(405, 'Method not allowed.');

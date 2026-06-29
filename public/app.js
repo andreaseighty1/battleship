@@ -151,6 +151,7 @@
   let playerNameDraft = readPlayerName();
   let toastTimer = null;
   let scores = [];
+  let matchesToday = null;
   let audioEnabled = readAudioPreference();
   let audioUnlocked = false;
   let audioUnlockListenerAttached = false;
@@ -550,11 +551,13 @@
   }
 
   async function fetchScores() {
+    const range = localDayRange();
+    const query = `?todayStart=${encodeURIComponent(range.start)}&todayEnd=${encodeURIComponent(range.end)}`;
     if (backendMode === 'supabase') {
-      return supabaseFunctionFetch('/scores');
+      return supabaseFunctionFetch(`/scores${query}`);
     }
 
-    const response = await fetch('/api/scores');
+    const response = await fetch(`/api/scores${query}`);
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.error || 'Kunde inte hämta topplistan.');
@@ -566,9 +569,18 @@
     try {
       const data = await fetchScores();
       scores = Array.isArray(data.scores) ? data.scores.filter((score) => !isHiddenScore(score) && !isBotWinnerScore(score)) : [];
+      const count = Number(data.matchesToday);
+      matchesToday = Number.isFinite(count) ? count : null;
     } catch {
       scores = [];
+      matchesToday = null;
     }
+  }
+
+  function localDayRange() {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    return { start, end: start + 24 * 60 * 60 * 1000 };
   }
 
   function isBotName(name) {
@@ -1272,11 +1284,7 @@
   }
 
   function renderHomeStatusCard() {
-    const today = new Date().toDateString();
-    const todayCount = scores.filter((score) => {
-      const finishedAt = Number(score.finishedAt || 0);
-      return finishedAt && new Date(finishedAt).toDateString() === today;
-    }).length;
+    const todayCount = matchesToday === null ? countScoresToday(scores) : matchesToday;
     return `
       <div class="home-status-card" aria-live="polite">
         <div>
@@ -1286,6 +1294,14 @@
         <span class="radar-mark" aria-hidden="true"></span>
       </div>
     `;
+  }
+
+  function countScoresToday(scoreRows) {
+    const today = new Date().toDateString();
+    return (scoreRows || []).filter((score) => {
+      const finishedAt = Number(score.finishedAt || 0);
+      return finishedAt && new Date(finishedAt).toDateString() === today;
+    }).length;
   }
 
   function renderScoresPage() {

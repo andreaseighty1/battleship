@@ -10,6 +10,7 @@ const {
   GAME_TTL_MS,
   LOBBY_TTL_MS,
   abandonGame,
+  countFinishedMatches,
   createBotGame,
   createGame,
   getJoinInfo,
@@ -342,6 +343,25 @@ test('bot wins do not record highscores', () => {
   assert.equal(hostState.winner.isYou, false);
   assert.equal(hostState.score, null);
   assert.equal(getHighScores().some((score) => score.code === host.code), false);
+});
+
+test('daily match counter includes player and computer finishes', () => {
+  const store = new Map();
+  const now = Date.now();
+  const playerGame = createGame('Ada', store);
+  joinGame(playerGame.code, 'Bo', store);
+  playerGame.game.status = 'finished';
+  playerGame.game.finishedAt = now;
+
+  const botGame = createBotGame('Lin', store);
+  botGame.game.status = 'finished';
+  botGame.game.finishedAt = now + 1;
+
+  const expired = createGame('Kim', store);
+  expired.game.status = 'expired';
+  expired.game.finishedAt = now + 2;
+
+  assert.equal(countFinishedMatches(now - 1000, now + 1000, store), 2);
 });
 
 test('leaving a game abandons it for the opponent without recording a score', () => {
