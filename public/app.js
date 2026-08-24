@@ -33,7 +33,7 @@
       shortLabel: 'Offensiv',
       effect: '+1 Barrage',
       quote: 'Anfall är bästa försvar.',
-      image: assetUrl('gfx/ccard_offense.png')
+      image: assetUrl('gfx/ccard_offense.webp')
     },
     {
       id: 'scout',
@@ -41,7 +41,7 @@
       shortLabel: 'Scout',
       effect: '+1 Sonar ping',
       quote: 'Kunskap är makt.',
-      image: assetUrl('gfx/ccard_scout.png')
+      image: assetUrl('gfx/ccard_scout.webp')
     },
     {
       id: 'defensive',
@@ -49,18 +49,18 @@
       shortLabel: 'Defensiv',
       effect: 'Blockerar första träffen',
       quote: 'Skydda flottan till varje pris.',
-      image: assetUrl('gfx/ccard_defensive.png')
+      image: assetUrl('gfx/ccard_defensive.webp')
     }
   ];
   const SHIP_ASSETS = {
-    carrier: assetUrl('gfx/ship_5_squares.png'),
-    battleship: assetUrl('gfx/ship_4_squares.png'),
-    cruiser: assetUrl('gfx/ship_3_squares_v1.png'),
-    submarine: assetUrl('gfx/ship_3_squares_v2.png'),
-    destroyer: assetUrl('gfx/ship_2_squares_v1.png'),
+    carrier: assetUrl('gfx/ship_5_squares.webp'),
+    battleship: assetUrl('gfx/ship_4_squares.webp'),
+    cruiser: assetUrl('gfx/ship_3_squares_v1.webp'),
+    submarine: assetUrl('gfx/ship_3_squares_v2.webp'),
+    destroyer: assetUrl('gfx/ship_2_squares_v1.webp'),
     drone: assetUrl('gfx/drone_placeholder.svg')
   };
-  const BANNER_IMAGE = assetUrl('gfx/battleship_banner.png');
+  const BANNER_IMAGE = assetUrl('gfx/battleship_banner.webp');
   const OWL_LOGO = assetUrl('gfx/42IO-logo-A-light.svg');
   const OWL_SEAL_LOGO = assetUrl('gfx/42IO-logo-A-light.svg');
   const MUSIC_ASSETS = {
@@ -3100,7 +3100,8 @@
 
   async function boot() {
     startClock();
-    await loadScores();
+    render();
+    loadScores().then(render).catch(() => render());
     await loadSession();
   }
 

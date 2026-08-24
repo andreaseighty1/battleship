@@ -16,14 +16,14 @@
   --ok: #2a9d8f;
   --warn: #e76f51;
   --shadow: 0 18px 45px rgba(23, 32, 42, 0.12);
-  --water-image: url("assets/gfx/water_bg.png");
-  --mobile-bg-image: url("assets/gfx/battleship_mobile_bg.png");
-  --mobile-empty-bg-image: url("assets/gfx/battleship_mobile_empty_bg.png");
-  --hit-burst: url("assets/gfx/explosion hit.png");
-  --miss-splash: url("assets/gfx/miss_water_splash.png");
+  --water-image: url("assets/gfx/water_bg.webp");
+  --mobile-bg-image: url("assets/gfx/battleship_mobile_bg.webp");
+  --mobile-empty-bg-image: url("assets/gfx/battleship_mobile_empty_bg.webp");
+  --hit-burst: url("assets/gfx/explosion hit.webp");
+  --miss-splash: url("assets/gfx/miss_water_splash.webp");
   --hit-marker: url("assets/gfx/red_hit_marker.png");
   --miss-marker: url("assets/gfx/white_miss_marker.png");
-  --sight-image: url("assets/gfx/sight.png");
+  --sight-image: url("assets/gfx/sight.webp");
   --metal-a: #d8e0df;
   --metal-b: #839199;
   --metal-c: #2d3840;
@@ -1274,7 +1274,7 @@ input {
   height: 34px;
   border: 0;
   border-radius: 0;
-  background: center / contain no-repeat url("assets/gfx/ship_5_squares.png");
+  background: center / contain no-repeat url("assets/gfx/ship_5_squares.webp");
   box-shadow: none;
   filter: drop-shadow(0 16px 16px rgba(0, 0, 0, 0.24));
 }
@@ -1294,7 +1294,7 @@ input {
   right: 16%;
   bottom: 25%;
   transform: rotate(-2deg);
-  background-image: url("assets/gfx/ship_3_squares_v2.png");
+  background-image: url("assets/gfx/ship_3_squares_v2.webp");
 }
 
 .status-grid,

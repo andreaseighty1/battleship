@@ -1360,7 +1360,11 @@ Deno.serve(async (req) => {
 
     if (req.method === 'GET' && parts[0] === 'scores') {
       const range = readMatchCountRange(url);
-      return json(200, { scores: await getHighScores(), matchesToday: await countFinishedMatches(range.start, range.end) });
+      const [scores, matchesToday] = await Promise.all([
+        getHighScores(),
+        countFinishedMatches(range.start, range.end)
+      ]);
+      return json(200, { scores, matchesToday });
     }
 
     if (req.method !== 'POST') fail(405, 'Method not allowed.');
