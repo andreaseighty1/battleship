@@ -158,6 +158,8 @@
   let activeMusicKey = null;
   let lastOutcomeSoundCode = null;
   let lastPlacementPointerAt = 0;
+  let lastTargetPointerAt = 0;
+  let targetActionPending = false;
   let nowMs = Date.now();
   let clockTimer = null;
   let uiAudioContext = null;
@@ -722,9 +724,41 @@
     clockTimer = window.setInterval(() => {
       nowMs = Date.now();
       if (shouldTickClock()) {
-        render();
+        updateLiveTimers();
       }
     }, 1000);
+  }
+
+  function updateLiveTimers() {
+    if (!state || !state.timing) {
+      return;
+    }
+    const remaining = remainingUntil(activeExpiresAt());
+    const elapsed = state.status === 'playing' ? turnElapsedMs() : matchElapsedMs();
+    const lobbyTimer = usesLobbyTimer();
+    const elapsedLabel = state.status === 'playing' ? 'Tur' : (lobbyTimer ? 'Kod' : 'Tid');
+    const remainingLabel = lobbyTimer ? 'Koden kvar' : 'Kvar';
+    const warningAt = lobbyTimer ? 60 * 1000 : 60 * 60 * 1000;
+
+    document.querySelectorAll('[data-time="elapsed"]').forEach((element) => {
+      element.textContent = `${elapsedLabel} ${formatDuration(elapsed)}`;
+    });
+    document.querySelectorAll('[data-time="remaining"]').forEach((element) => {
+      element.textContent = `${remainingLabel} ${formatDuration(remaining)}`;
+      element.classList.toggle('is-warning', remaining <= warningAt);
+    });
+    document.querySelectorAll('[data-time-panel="elapsed"]').forEach((element) => {
+      element.textContent = formatDuration(matchElapsedMs());
+    });
+    document.querySelectorAll('[data-time-panel="max"]').forEach((element) => {
+      element.textContent = formatDuration(activeMaxDurationMs());
+    });
+    document.querySelectorAll('[data-time-panel="remaining"]').forEach((element) => {
+      element.textContent = formatDuration(remaining);
+    });
+    document.querySelectorAll('[data-time-panel="turn-wait"]').forEach((element) => {
+      element.textContent = formatDuration(turnElapsedMs());
+    });
   }
 
   function renderTimeChips() {
@@ -738,8 +772,8 @@
     const remainingLabel = lobbyTimer ? 'Koden kvar' : 'Kvar';
     const warningAt = lobbyTimer ? 60 * 1000 : 60 * 60 * 1000;
     return `
-      <span class="chip time-chip elapsed-chip">${escapeHtml(elapsedLabel)} ${escapeHtml(formatDuration(elapsed))}</span>
-      <span class="chip time-chip remaining-chip ${remaining <= warningAt ? 'is-warning' : ''}">${escapeHtml(remainingLabel)} ${escapeHtml(formatDuration(remaining))}</span>
+      <span class="chip time-chip elapsed-chip" data-time="elapsed">${escapeHtml(elapsedLabel)} ${escapeHtml(formatDuration(elapsed))}</span>
+      <span class="chip time-chip remaining-chip ${remaining <= warningAt ? 'is-warning' : ''}" data-time="remaining">${escapeHtml(remainingLabel)} ${escapeHtml(formatDuration(remaining))}</span>
     `;
   }
 
@@ -756,15 +790,15 @@
       <div class="time-panel">
         <div>
           <span>${escapeHtml(firstLabel)}</span>
-          <strong>${escapeHtml(formatDuration(matchElapsedMs()))}</strong>
+          <strong data-time-panel="elapsed">${escapeHtml(formatDuration(matchElapsedMs()))}</strong>
         </div>
         <div>
           <span>Max</span>
-          <strong>${escapeHtml(formatDuration(maxDuration))}</strong>
+          <strong data-time-panel="max">${escapeHtml(formatDuration(maxDuration))}</strong>
         </div>
         <div>
           <span>${escapeHtml(remainingLabel)}</span>
-          <strong>${escapeHtml(formatDuration(remaining))}</strong>
+          <strong data-time-panel="remaining">${escapeHtml(formatDuration(remaining))}</strong>
         </div>
       </div>
     `;
@@ -777,7 +811,7 @@
     return `
       <div class="wait-card" role="status" aria-live="polite">
         <span>Väntar på ${escapeHtml(state.turn.playerName)}</span>
-        <strong>${escapeHtml(formatDuration(turnElapsedMs()))}</strong>
+        <strong data-time-panel="turn-wait">${escapeHtml(formatDuration(turnElapsedMs()))}</strong>
         <small>Sedan motståndarens tur började</small>
       </div>
     `;
@@ -2377,7 +2411,8 @@
         updateTargetPreview(cell);
       });
       cell.addEventListener('focus', () => updateTargetPreview(cell));
-      cell.addEventListener('click', handleAction);
+      cell.addEventListener('pointerup', handleTargetPointer);
+      cell.addEventListener('click', handleTargetClick);
     });
     const placementBoard = document.querySelector('[data-board="placement"]');
     if (placementBoard) {
@@ -2743,6 +2778,25 @@
     placeSelectedShip(event.currentTarget);
   }
 
+  function handleTargetPointer(event) {
+    if (event.pointerType === 'mouse' && event.button !== 0) {
+      return;
+    }
+    lastTargetPointerAt = Date.now();
+    event.preventDefault();
+    event.stopPropagation();
+    unlockAudio();
+    targetCell(event.currentTarget);
+  }
+
+  function handleTargetClick(event) {
+    if (Date.now() - lastTargetPointerAt < 350) {
+      return;
+    }
+    unlockAudio();
+    targetCell(event.currentTarget);
+  }
+
   function previewOrPlaceSelectedShip(cellElement) {
     if (state && state.own.ready) {
       return;
@@ -3032,6 +3086,9 @@
     if (!state || state.status !== 'playing' || !state.turn || !state.turn.isYou) {
       return;
     }
+    if (targetActionPending) {
+      return;
+    }
     const cell = readCell(cellElement);
     const ability = hasArcadePowers() ? selectedAbility : 'shot';
     if (ability !== 'shot' && abilityCharge(ability) > 0) {
@@ -3063,6 +3120,7 @@
       showToast('Den rutan är redan beskjuten.');
       return;
     }
+    targetActionPending = true;
     try {
       const data = await api('/api/action', {
         code: state.code,
@@ -3088,6 +3146,8 @@
     } catch (error) {
       playUiSound('error');
       showToast(error.message);
+    } finally {
+      targetActionPending = false;
     }
   }
 
